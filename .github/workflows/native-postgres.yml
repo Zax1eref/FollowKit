@@ -6,6 +6,8 @@ name: Native PostgreSQL concurrency gate
     paths:
       - .github/workflows/native-postgres.yml
       - database/postgres/**
+      - supabase/migrations/**
+      - tests/postgres/session-revocation.mjs
       - tests/native/**
       - tests/postgres/bootstrap.sql
 permissions:
@@ -40,10 +42,13 @@ jobs:
           package-manager-cache: false
       - name: Check offline staging preflight
         run: node --test tests/staging-preflight.test.mjs
+      - run: npm ci --prefix tests/postgres
+      - name: Check session revocation in PostgreSQL WASM
+        run: node tests/postgres/session-revocation.mjs
       - run: npm ci --prefix tests/native
       - name: Check configuration guards
         run: npm --prefix tests/native run test:guards
-      - name: Run five native groups three times with fresh databases
+      - name: Run six native groups three times with fresh databases
         shell: bash
         env:
           FOLLOWKIT_NATIVE_TEST_URL: postgresql://postgres:followkit-disposable-ci-only@127.0.0.1:5432/postgres
@@ -53,4 +58,3 @@ jobs:
             echo "Native concurrency iteration ${iteration}/3"
             npm --prefix tests/native test
           done
-
