@@ -1,0 +1,48 @@
+## Offline staging preflight — 26 October 2026
+
+Added `scripts/staging-preflight.mjs` and a deliberately incomplete `config/staging-plan.example.json`. The checker validates the planned bindings through the actual Worker configuration guard, plus exact callback/recovery URLs, verified-email/anonymous-auth settings and guarded asset routing. It performs no network calls or mutations and emits error codes without submitted values. Unexpected bindings, secret-key formats, malformed/oversized input and equivalent app/provider origins are rejected.
+
+Validation this increment: Node **113/113** passed, including seven new preflight tests. Running the incomplete example correctly exits 2 with `configurationValid:false` and `releaseReady:false`. Even a valid plan always reports `releaseReady:false` because it cannot verify actual provider settings, approval or live acceptance gates. Prior browser 8/8 and workerd 9/9 are retained evidence, not reruns. Native PostgreSQL and CI remain UNRUN; no push, provider setup, deployment or spending occurred.
+
+Read `docs/staging-preflight.md` for input format, commands and limits. The next environment-dependent step still needs a concrete approved staging target or execution of the manual native CI gate; this checker does not substitute for either.
+
+## Native CI preparation — 26 October 2026
+
+Added `.github/workflows/native-postgres.yml`, manually triggered only. It runs Node 24 against a disposable PostgreSQL 18 service through loopback, installs the locked native dependencies and repeats all five native groups three times with fresh databases. It uses read-only repository permissions and has no deployment/provider secrets. No remote push or workflow dispatch was performed; native results remain UNRUN.
+
+Native connection validation now rejects malformed/remote/option-overridden URLs without echoing credentials and bounds connection attempts to five seconds. Local validation: 3/3 configuration guard tests, JavaScript syntax and YAML structure pass (`project/native-ci-preparation-results.txt`). These are preparation checks, not native concurrency results. Prior Chromium 8/8, Node 106/106 and workerd 9/9 evidence is unchanged and was not rerun for this test-only increment.
+
+Next: review and run this manual workflow in an approved repository/runner with sufficient CI allowance, retain the run URL and engine version, and require all three iterations to pass before closing the native gate. Provider identity remains simulated even when this workflow passes.
+
+## Current checkpoint — 26 October 2026
+
+Standalone browser readiness completed locally: Chromium 153.0.8010.0 passes 8/8 groups with the real bundled UI/SDK and workerd, using intercepted provider/data fixtures. Thai font is bundled and served from the app origin; desktop 1280px/mobile-width 390px screenshots were inspected internally. Node 106/106 and workerd 9/9 were rerun successfully. SQL WASM 18/18 + 10/10 and other DOM/SDK results below are retained prior evidence, not reruns in this increment.
+
+Native PostgreSQL concurrency remains UNRUN: no native server is available and the host cannot launch a non-root child. An opt-in loopback-only runner with five scenarios is prepared and syntax-checked; it is not a passing concurrency result. Live provider/email, direct online RLS, restore reconciliation, physical devices and full accessibility remain open. No external deployment, real email, customer data or spending occurred. Default deployment remains disabled.
+
+Read `docs/staging-validation.md` for reproduction, scope, required staging inputs and acceptance/rollback gates. Next: execute the native runner on an authorized disposable local PostgreSQL instance, then configure and validate a concrete approved staging environment. Earlier dated entries below are historical and are superseded by this checkpoint.
+
+# FollowKit current state — 24 October 2026 / test-account lifecycle
+IN PROGRESS — local UI/API/SQLite, synthetic A/B identities only. Not a live authenticated SaaS.
+DONE: quote CRUD/history; customer manager; owner isolation; durable quote retry; pagination; per-process limits; scoped JSON export; verified non-overwriting local backup/restore; confirmed test-account deletion and all-session revocation.
+Latest automated evidence: 54/54 tests pass; build passes. Eight deletion tests use disposable in-memory fixtures. Existing runtime records/backups were not deleted.
+Deletion dialog: Chrome phrase gating, cancel/Escape, keyboard navigation, reopen reset and focus restoration verified; disabled-button styling corrected. No real browser delete submission. See qa-deletion-ui.md. Earlier browser evidence: qa-integration.md and qa-reliability.md.
+NOT READY: real provider lifecycle, production tenant policies, online deployment/billing, production deletion/backup retention and restore reconciliation, physical-mobile/full a11y, customer validation.
+Runtime databases/backup files/sessions excluded from ZIP. See docs/account-deletion.md and docs/data-recovery.md.
+Interviews=0; real signups=0; activated=0; paying=0; revenue=0; spend=0 THB. Ceiling 2,000 THB does not authorize spending.
+
+Production target SELECTED, not built/provisioned: standalone Workers + Supabase Auth/Postgres; preserves independent signup/reset. Portable error extraction completed; 54/54 tests + build rerun passed. Next: separate PostgreSQL schema/RLS/functions and async repository migration. See docs/production-decision.md.
+
+25 October 2026: separate PostgreSQL schema/RLS and six mutation RPCs implemented. PGlite PostgreSQL WASM tests 14/14 groups pass; existing local suite 54/54 and build pass. No native multi-connection test or real Supabase auth. See docs/postgres-foundation.md. Next: async repository and HTTP adapter.
+
+Latest 25 October: async API and per-request user-token HTTP repository implemented. 66/66 Node tests; 18/18 PGlite groups; build pass. Mock HTTP + SQL test transport only, no live Supabase or native concurrency. Migration 003 adds atomic patch/scoped retry/summary/export. See docs/http-repository.md. Next standalone Worker boundary.
+
+Latest 25 October 2026: standalone API Worker candidate completed. Node 76/76 tests and workerd 7/7 smoke groups pass. Bundle excludes SQLite, synthetic harness and static assets; default configuration disables API. Fixed unsupported redirect mode using manual redirects with rejection, verified no redirect following. All provider responses mocked; no public deployment or real provider setup. See docs/worker-runtime.md. Next: standalone auth frontend using a mocked provider contract, followed by approved staging lifecycle/RLS/native concurrency checks.
+
+Latest 25 October — standalone auth frontend contract: Thai login/signup/reset/recovery/logout views and injected SDK controller added. Main Node 85/85; jsdom 5/5 groups passed. Default boot disabled; preview is loopback-only, fixture-only, sends no email and persists no session. Browser visual QA blocked by unavailable Chromium/invalid download ZIP. Worker/SQL unchanged (prior 7/7 workerd, 18/18 PGlite). Read docs/auth-frontend.md. Next: bundle provider SDK, PKCE/callback integration and bearer handoff to Worker, then approved staging lifecycle validation.
+
+Latest 25 October — SDK integration: Supabase JS 2.118.0 bundled; PKCE callback cleanup/validation and same-origin bearer account read implemented. Worker now serves only allowlisted auth assets through its configuration guard. Node 93/93, form DOM 5/5, actual SDK integration 8/8, bundled-entry DOM 2/2 and workerd 8/8 groups passed. Provider/data mocked; no real email/account/deployment. Read docs/auth-sdk-integration.md. Next connect quote/customer workspace to standalone session and define provisioning; actual-browser/live-provider gates remain.
+
+Latest 25 October — standalone workspace: authenticated customer/quote CRUD, followup history, dashboard metrics and load-more pages implemented without synthetic controls. Session changes clear records and drafts; quote retry keys survive ambiguous responses. Node 102/102; auth DOM 5/5; SDK 8/8; bundled workspace DOM 7/7; workspace DOM 3/3; workerd 8/8 passed. Provider/data mocked; no visual browser or live deployment claim. See docs/standalone-workspace.md. Next explicit account provisioning with tombstone protection, then approved staging gates.
+
+Latest 25 October — explicit account provisioning: GET onboarding status and confirmed POST create a free account/subscription using provider-owned verified identity. Migration 004 records retained identity tombstones on ledger/deleting/purge and blocks setup/read/write after deletion markers. Node 106/106; PostgreSQL WASM regressions 18/18 + provisioning 10/10; bundle DOM 9/9; workerd 9/9. No real provider or deployment. Read docs/account-provisioning.md for concurrency/restore limits. Next staging validation plan plus actual-browser/native integration checks.

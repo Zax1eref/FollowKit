@@ -1,0 +1,1 @@
+{"name":"followkit-worker-tools","private":true,"type":"module","scripts":{"build":"node build.mjs","test":"node smoke.mjs"},"dependencies":{"esbuild":"0.28.2","miniflare":"4.20260730.0"}}

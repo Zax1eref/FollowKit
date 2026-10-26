@@ -1,0 +1,19 @@
+{
+  "configurationValid": false,
+  "releaseReady": false,
+  "errors": [
+    "invalid_app_origin",
+    "worker_configuration_rejected",
+    "email_confirmation_required",
+    "anonymous_signin_must_be_disabled"
+  ],
+  "pendingGates": [
+    "native_postgres_concurrency",
+    "live_provider_lifecycle",
+    "direct_rls_isolation",
+    "token_revocation_bound",
+    "restore_reconciliation",
+    "device_accessibility",
+    "approved_staging_target_and_budget"
+  ]
+}

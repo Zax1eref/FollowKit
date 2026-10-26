@@ -1,0 +1,14 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> test:sdk
+> node sdk-test.mjs
+
+PASS SDK configuration rejects wrong origin and secret keys
+PASS real SDK PKCE challenge/verifier exchange emits recovery and cleans URL
+PASS replayed callback rejected after verifier consumption
+PASS malformed and implicit callbacks never reach exchange
+PASS real SDK session bearer reaches Worker auth and owner-scoped repository
+PASS refreshed SDK token replaces prior token on next Worker request
+PASS SDK logout clears persisted session and prevents account fetch
+PASS code exchange without stored verifier fails
+RESULT 8/8 SDK integration groups passed. Actual SDK + Worker code, all provider/data responses mocked; no live emails or deployment.

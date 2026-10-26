@@ -1,0 +1,10 @@
+import {JSDOM} from 'jsdom';import {readFile} from 'node:fs/promises';import assert from 'node:assert/strict';import {mountWorkspace} from '../../src/workspace/view.mjs';
+const dom=new JSDOM(await readFile(new URL('../../src/auth/index.html',import.meta.url),'utf8'));const d=dom.window.document,$=id=>d.getElementById(id);let lost=true;const keys=[];
+const customer={id:'11111111-1111-4111-8111-111111111111',name:'<img src=x onerror=alert(1)>',contact:'fixture'};
+const api={request:async(path,options)=>{if(options){keys.push(options.key);if(lost){lost=false;throw Error('network_lost')}return {}}if(path.includes('dashboard'))return {customers:1,pending:0,due:0,amount_satang:0};return {items:path.includes('customers')?[customer]:[],next_cursor:null}}};
+const workspace=mountWorkspace({api,root:d,confirmDelete:()=>false});await workspace.start();assert.equal($('customer-list').querySelector('img'),null);assert.match($('customer-list').textContent,/<img/);console.log('PASS workspace renders customer text without HTML execution');
+$('quote-customer').value=customer.id;$('quote-title').value='fixture';$('quote-amount').value='10.25';
+async function submit(){const event=new dom.window.Event('submit',{cancelable:true});$('quote-form').dispatchEvent(event);for(let i=0;i<100&&$('refresh-workspace').disabled;i++)await new Promise(r=>setTimeout(r,1));await new Promise(r=>setTimeout(r,0))}
+await submit();assert.match($('workspace-status').textContent,/ผลการบันทึกอาจยังไม่แน่ชัด/);assert.equal($('quote-title').value,'fixture');await submit();assert.equal(keys.length,2);assert.equal(keys[0],keys[1]);assert.equal($('quote-title').value,'');console.log('PASS ambiguous quote response retains fields and retry key until success');
+$('customer-name').value='sensitive draft';workspace.clear();assert.equal($('workspace').hidden,true);assert.equal($('customer-name').value,'');assert.equal($('quote-customer').options.length,1);assert.equal($('workspace-metrics').textContent,'');console.log('PASS clear removes drafts, selections, metrics and records');
+console.log('RESULT 3/3 workspace DOM groups passed. No real-browser/layout claim.');dom.window.close();

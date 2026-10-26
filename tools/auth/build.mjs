@@ -1,0 +1,11 @@
+import {build} from 'esbuild';import {mkdir,readFile,writeFile,copyFile} from 'node:fs/promises';import {fileURLToPath} from 'node:url';
+const root=fileURLToPath(new URL('../../',import.meta.url)),out=new URL('../../auth-dist/auth/',import.meta.url);
+const result=await build({absWorkingDir:root,entryPoints:['src/auth/boot.mjs'],bundle:true,format:'esm',platform:'browser',target:'es2022',write:false,minify:true,metafile:true,nodePaths:[fileURLToPath(new URL('./node_modules',import.meta.url))]});
+for(const input of Object.keys(result.metafile.inputs))if(input.startsWith('tests/')||input.includes('src/server/')||input.includes('fixtures'))throw Error('Forbidden auth input');
+for(const o of Object.values(result.metafile.outputs))if(o.imports.some(i=>i.external))throw Error('External import in auth bundle');
+const code=result.outputFiles[0].text;if(code.includes('demo-password-123')||code.includes('simulate-recovery'))throw Error('Fixture in auth bundle');
+await mkdir(out,{recursive:true});await writeFile(new URL('boot.mjs',out),code);
+for(const file of ['index.html','style.css'])await copyFile(new URL('../../src/auth/'+file,import.meta.url),new URL(file,out));
+await copyFile(new URL('./node_modules/@fontsource-variable/noto-sans-thai/files/noto-sans-thai-thai-wght-normal.woff2',import.meta.url),new URL('thai.woff2',out));
+await copyFile(new URL('./node_modules/@fontsource-variable/noto-sans-thai/LICENSE',import.meta.url),new URL('../FONT-LICENSE.txt',out));
+console.log(`Auth bundle verified: ${Buffer.byteLength(code)} bytes; SDK bundled; no fixture/server inputs or external imports.`);

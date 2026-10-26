@@ -1,0 +1,25 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> test
+> node run.mjs
+
+ENGINE PostgreSQL 18.6 (PGlite 0.5.11) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 3.1.74 (1092ec30a3fb1d46b1782ff1b4db5094d3d06ae5), 32-bit
+PASS non-superuser roles and RLS enabled on all nine tables
+PASS A/B create owner-derived quote drafts and read only own records
+PASS anonymous cannot SELECT or call mutation RPC
+PASS missing subject cannot read tenant rows or mutate
+PASS direct writes, plan escalation and private helpers/tables denied
+PASS foreign customer/quote edit, delete and followup denied
+PASS same-key replay returns same record; changed payload conflicts
+PASS validation failure rolls back newly created customer and retry row
+PASS followup updates due atomically, replays once and rejects conflict
+PASS free quota is 10, retry at quota succeeds, failed creation leaves no orphan
+PASS owner CRUD preserves links and rejects linked customer deletion
+PASS composite FK prevents cross-tenant reference even for privileged writer
+PASS scoped retries isolate quote and draft endpoints
+PASS atomic partial patch preserves omitted fields and blocks mass assignment
+PASS summary/export/followup RPCs apply invoker RLS
+PASS HTTP adapter parameters and response mapping execute against SQL via test transport
+PASS deleting account loses all reads and RPC access without affecting B
+PASS all privileged functions have pinned search_path and no PUBLIC execution
+RESULT 18/18 groups passed; PostgreSQL WASM only; provider auth and multi-connection concurrency NOT tested.

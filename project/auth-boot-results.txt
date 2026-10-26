@@ -1,0 +1,15 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> test:boot
+> node boot-test.mjs
+
+PASS onboarding requires explicit confirmation and duplicate clicks create once
+PASS bundled SDK boot → login form → Worker → scoped account rendering
+PASS bundled customer and quote creation through SDK/Worker/RPC
+PASS customer editing and linked-customer deletion rejection
+PASS followup history and quote status update
+PASS bundled logout removes account data and workspace forms from DOM
+PASS next account sees no prior account rows
+PASS returning account reads prior records then deletes quote and customer
+PASS blocked identity cannot open setup or workspace
+RESULT 9/9 bundled-entry DOM groups passed; no visual-browser or live provider claim.

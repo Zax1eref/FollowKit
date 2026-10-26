@@ -1,0 +1,5 @@
+
+> followkit-prototype@0.1.0 build
+> node src/build.mjs
+
+Built standalone dist/index.html

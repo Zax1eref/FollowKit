@@ -1,0 +1,12 @@
+{
+  "name": "followkit-native-postgres-checks",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node run.mjs",
+    "test:guards": "node --test config.test.mjs"
+  },
+  "dependencies": {
+    "pg": "8.23.1"
+  }
+}

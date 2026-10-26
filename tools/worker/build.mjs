@@ -1,0 +1,11 @@
+import {build} from 'esbuild';import {mkdir,writeFile} from 'node:fs/promises';import {fileURLToPath} from 'node:url';import path from 'node:path';
+const root=fileURLToPath(new URL('../../',import.meta.url));
+const output=await build({absWorkingDir:root,entryPoints:['src/worker/index.mjs'],bundle:true,format:'esm',platform:'browser',target:'es2022',write:false,metafile:true,minify:false,legalComments:'none'});
+const inputs=Object.keys(output.metafile.inputs);
+for(const input of inputs)if(/(?:store|dev|test-harness|recovery|client-api|app)\.mjs$|node_modules|\.sqlite|\.html/.test(input))throw Error('Forbidden Worker input: '+input);
+for(const data of Object.values(output.metafile.inputs))for(const imported of data.imports)if(imported.external)throw Error('Unexpected external dependency: '+imported.path);
+const bundle=output.outputFiles[0].text;
+for(const forbidden of ['node:sqlite','DatabaseSync','fk_test=','FOLLOWKIT_TEST_MODE','createTestHarness','synthetic-accounts'])if(bundle.includes(forbidden))throw Error('Forbidden bundle marker: '+forbidden);
+const dir=path.join(root,'worker-dist');await mkdir(dir,{recursive:true});await writeFile(path.join(dir,'worker.mjs'),bundle);
+await writeFile(path.join(dir,'build-manifest.json'),JSON.stringify({entry:'src/worker/index.mjs',bytes:Buffer.byteLength(bundle),inputs,externalImports:0,staticAssets:0},null,2)+'\n');
+console.log('Worker bundle verified: '+Buffer.byteLength(bundle)+' bytes; '+inputs.length+' inputs; no external imports or test/SQLite/static assets.');

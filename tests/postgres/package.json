@@ -1,0 +1,12 @@
+{
+  "name": "followkit-postgres-checks",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@electric-sql/pglite": "0.5.11"
+  },
+  "scripts": {
+    "test": "node run.mjs",
+    "test:provisioning": "node provisioning.mjs"
+  }
+}

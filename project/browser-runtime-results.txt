@@ -1,0 +1,14 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> test
+> node run.mjs
+
+PASS Chromium login and explicit onboarding
+PASS Chromium customer/quote forms and integer amount
+PASS Chromium followup and history
+PASS desktop and mobile-width layout without horizontal overflow
+PASS real browser persisted session and cross-tab logout clears workspace
+PASS next identity sees no prior records
+PASS invalid callback cleanup and no external redirect
+PASS no page errors or unexpected outbound origins
+RESULT 8/8 real Chromium groups passed (153.0.8010.0); provider/data mocked; no live deployment.

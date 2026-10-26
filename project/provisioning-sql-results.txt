@@ -1,0 +1,16 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> test:provisioning
+> node provisioning.mjs
+
+PASS anonymous, absent identity and unverified email cannot provision
+PASS verified anonymous user cannot provision
+PASS status is read-only and explicit confirmation is mandatory
+PASS atomic free account and subscription; repeated call preserves plan
+PASS direct writes and private tombstone reads are denied
+PASS deleting marker persists through state rollback and purge
+PASS ledger blocks never-provisioned identity and survives ledger cleanup
+PASS tombstone survives provider-user deletion and same-UUID recreation
+PASS subscription failure rolls back account insert; explicit retry succeeds
+PASS direct account purge also writes a retained tombstone
+RESULT 10/10 provisioning groups passed in PostgreSQL WASM; provider identity simulated, multi-connection concurrency untested.

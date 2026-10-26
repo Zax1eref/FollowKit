@@ -1,0 +1,12 @@
+25 October 2026: Native PostgreSQL preflight
+Execution uid=0(root); postgres/initdb binaries unavailable.
+Attempt to launch a non-root child (uid/gid 65534) returned PermissionError: Operation not permitted.
+No privilege override, database server or live database connection was attempted.
+Runner syntax checked with node --check; concurrency scenarios remain UNRUN.
+
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> test
+> node run.mjs
+
+BLOCKED: set FOLLOWKIT_NATIVE_TEST_URL to an authorized local disposable PostgreSQL admin connection (postgres database). No connection or mutation attempted.

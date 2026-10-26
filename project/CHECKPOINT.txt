@@ -1,0 +1,3 @@
+Source checkpoint: 201190ea37b31b76e0b8fbb76486019c19f56671
+Prior: 082de4a
+26 October 2026: offline staging preflight added; Node 113/113 passed. Incomplete template correctly rejected with exit 2. Checker never reports release readiness. Native PG and CI UNRUN. No push, deployment, real email or cost. See docs/staging-preflight.md.

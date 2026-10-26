@@ -1,0 +1,6 @@
+// Extract packaged browser files as the current user; do not restore archive ownership.
+import {mkdir,chmod,writeFile} from 'node:fs/promises';import {createReadStream,createWriteStream} from 'node:fs';import {pipeline} from 'node:stream/promises';import {createBrotliDecompress} from 'node:zlib';import {spawn} from 'node:child_process';import {fileURLToPath} from 'node:url';
+const bin=fileURLToPath(new URL('./node_modules/@sparticuz/chromium/bin/',import.meta.url));const out='/tmp/followkit-chromium';await mkdir(out,{recursive:true});
+await pipeline(createReadStream(bin+'chromium.br'),createBrotliDecompress(),createWriteStream(out+'/chromium'));await chmod(out+'/chromium',0o700);
+for(const name of ['fonts','swiftshader']){const dir=name==='fonts'?out+'/fonts':out;await mkdir(dir,{recursive:true});const child=spawn('tar',['-x','-f','-','--no-same-owner','-C',dir],{stdio:['pipe','inherit','inherit']});const done=new Promise((resolve,reject)=>{child.once('error',reject);child.once('exit',code=>code===0?resolve():reject(Error('Archive extraction failed')))});await pipeline(createReadStream(bin+name+'.tar.br'),createBrotliDecompress(),child.stdin);await done}
+console.log('Browser extracted without changing file ownership: '+out+'/chromium');

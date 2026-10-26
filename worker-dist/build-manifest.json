@@ -1,0 +1,15 @@
+{
+  "entry": "src/worker/index.mjs",
+  "bytes": 26556,
+  "inputs": [
+    "src/server/rate-limit.mjs",
+    "src/server/errors.mjs",
+    "src/domain.mjs",
+    "src/server/api.mjs",
+    "src/server/auth.mjs",
+    "src/server/http-repository.mjs",
+    "src/worker/index.mjs"
+  ],
+  "externalImports": 0,
+  "staticAssets": 0
+}

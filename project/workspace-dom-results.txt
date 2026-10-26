@@ -1,0 +1,4 @@
+PASS workspace renders customer text without HTML execution
+PASS ambiguous quote response retains fields and retry key until success
+PASS clear removes drafts, selections, metrics and records
+RESULT 3/3 workspace DOM groups passed. No real-browser/layout claim.
