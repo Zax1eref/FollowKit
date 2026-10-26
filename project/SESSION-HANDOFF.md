@@ -1,3 +1,13 @@
+## Supabase staging schema installed — 26 October 2026
+
+The native CI gate now passes on both PostgreSQL 17.11 and 18 (five scenarios, three repetitions per engine). Run: https://github.com/Zax1eref/FollowKit/actions/runs/40281596660 on commit 2bcd413a9fc66f9153ab5562238dc8d00c910a0c. Relevant schema/test/workflow pushes now trigger this matrix; manual runs remain available.
+
+All four existing SQL migrations were applied to the user-designated empty Supabase staging project. Live checks confirm RLS on nine tables, no anon reads or RPC execution, no direct authenticated writes, and five owner-scoped SELECT policies. A rolled-back role smoke test rejects anonymous table/RPC access and identityless authenticated onboarding/writes. No Auth users or business records were created. This is schema/permission evidence, not real two-user lifecycle or HTTP/RLS acceptance.
+
+Security Advisor reports intentional privileged RPC warnings (10) and default-deny private tables without policies (4 INFO). Performance Advisor reports two composite-FK index notices and five unused indexes on the empty database. These findings are documented in docs/supabase-staging-install.md; they are not claimed resolved or clean. No frontend deployment, email or billing change occurred. Next: choose the Cloudflare staging origin, verify Auth settings and run actual provider lifecycle/direct-RLS checks.
+
+Earlier dated checkpoints below are historical and superseded by this status.
+
 ## Offline staging preflight — 26 October 2026
 
 Added `scripts/staging-preflight.mjs` and a deliberately incomplete `config/staging-plan.example.json`. The checker validates the planned bindings through the actual Worker configuration guard, plus exact callback/recovery URLs, verified-email/anonymous-auth settings and guarded asset routing. It performs no network calls or mutations and emits error codes without submitted values. Unexpected bindings, secret-key formats, malformed/oversized input and equivalent app/provider origins are rejected.
