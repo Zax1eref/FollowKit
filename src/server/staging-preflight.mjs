@@ -38,7 +38,13 @@ export async function stagingPreflight(plan) {
     if (!Array.isArray(actual) || actual.length !== 2 || new Set(actual).size !== 2 ||
         !expected.every(url => actual.includes(url))) fail('redirect_allowlist_mismatch');
   }
-  if (worker.workers_dev !== false || worker.preview_urls !== false) fail('alternate_worker_urls_must_be_disabled');
+  // workers.dev may be the explicit primary staging origin, never an extra alias.
+  const primaryWorkersDev = worker.workers_dev === true && app && !app.port &&
+    typeof worker.name === 'string' && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(worker.name) &&
+    app.hostname.split('.').length === 4 && app.hostname.startsWith(worker.name + '.') &&
+    app.hostname.endsWith('.workers.dev');
+  if ((worker.workers_dev !== false && !primaryWorkersDev) || worker.preview_urls !== false)
+    fail('alternate_worker_urls_must_be_disabled');
   const assets = worker.assets;
   if (!object(assets) || assets.directory !== 'auth-dist' || assets.binding !== 'ASSETS' ||
       assets.run_worker_first !== true || assets.html_handling !== 'none') fail('asset_routing_mismatch');

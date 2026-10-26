@@ -1,0 +1,14 @@
+{
+  "configurationValid": true,
+  "releaseReady": false,
+  "errors": [],
+  "pendingGates": [
+    "native_postgres_concurrency",
+    "live_provider_lifecycle",
+    "direct_rls_isolation",
+    "token_revocation_bound",
+    "restore_reconciliation",
+    "device_accessibility",
+    "approved_staging_target_and_budget"
+  ]
+}

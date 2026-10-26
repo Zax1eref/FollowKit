@@ -45,3 +45,17 @@ test('equivalent app/provider origins cannot bypass collision check with a defau
   const p=fixture();p.bindings.SUPABASE_URL='https://app.test:443/';
   assert.ok((await stagingPreflight(p)).errors.includes('app_provider_origin_collision'));
 });
+
+test('workers.dev is allowed only as the explicitly named primary staging origin', async () => {
+  const p=fixture();p.bindings.APP_ORIGIN='https://followkit.example.workers.dev';
+  p.provider.redirectUrls=['/auth/callback','/auth/recovery'].map(path=>p.bindings.APP_ORIGIN+path);
+  p.worker.name='followkit';p.worker.workers_dev=true;
+  assert.equal((await stagingPreflight(p)).configurationValid,true);
+  p.worker.name='other';assert.equal((await stagingPreflight(p)).configurationValid,false);
+  p.worker.name='followkit';p.worker.preview_urls=true;
+  assert.equal((await stagingPreflight(p)).configurationValid,false);
+});
+test('workers.dev cannot be enabled as an alias for a custom-domain app', async () => {
+  const p=fixture();p.worker.name='followkit';p.worker.workers_dev=true;
+  assert.ok((await stagingPreflight(p)).errors.includes('alternate_worker_urls_must_be_disabled'));
+});

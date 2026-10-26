@@ -1,3 +1,9 @@
+## Staging URL configured — 26 October 2026
+
+Prepared the user-selected origin `https://followkit.hakimihaika219.workers.dev` in `wrangler.staging.jsonc`, Worker name `followkit`. Entry URL: `/auth/`. Supabase project URL and publishable key are configured; no admin/service key is included. The default config remains disabled. This is a deployment preparation commit, not confirmation of a live deployment or changed Auth settings.
+
+Node 115/115 tests pass. Primary workers.dev names are validated; preview URLs remain disabled. The target offline preflight passes while releaseReady remains false. Follow `docs/cloudflare-staging-target.md` to apply the exact Auth redirects and Cloudflare build/deploy commands. The pending native gate in generic checker output is superseded by the verified PostgreSQL 17/18 CI evidence below.
+
 ## Supabase staging schema installed — 26 October 2026
 
 The native CI gate now passes on both PostgreSQL 17.11 and 18 (five scenarios, three repetitions per engine). Run: https://github.com/Zax1eref/FollowKit/actions/runs/40281596660 on commit 2bcd413a9fc66f9153ab5562238dc8d00c910a0c. Relevant schema/test/workflow pushes now trigger this matrix; manual runs remain available.

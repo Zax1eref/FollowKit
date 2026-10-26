@@ -1,0 +1,27 @@
+{
+  "bindings": {
+    "FOLLOWKIT_API_ENABLED": "true",
+    "APP_ORIGIN": "https://followkit.hakimihaika219.workers.dev",
+    "SUPABASE_URL": "https://kfnputowvfxozdiuhpzo.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_pwwN58Zc9ChqFDNFFnxczg_cHUQABdd"
+  },
+  "provider": {
+    "emailConfirmationRequired": true,
+    "anonymousSignInEnabled": false,
+    "redirectUrls": [
+      "https://followkit.hakimihaika219.workers.dev/auth/callback",
+      "https://followkit.hakimihaika219.workers.dev/auth/recovery"
+    ]
+  },
+  "worker": {
+    "name": "followkit",
+    "workers_dev": true,
+    "preview_urls": false,
+    "assets": {
+      "directory": "auth-dist",
+      "binding": "ASSETS",
+      "run_worker_first": true,
+      "html_handling": "none"
+    }
+  }
+}

@@ -27,3 +27,7 @@ Pending gates: native multi-connection PostgreSQL; actual signup/recovery lifecy
 ## Evidence
 
 `npm test` passes 113/113, including seven preflight groups. They cover valid fixture configuration without release readiness, actual Worker rejection, callback allowlist errors, auth/asset settings, unknown bindings/invalid shapes, CLI credential-safe rejection of malformed/oversized stdin and origin normalization. `project/staging-preflight-results.txt` records the deliberately incomplete template rejection. No real provider settings were supplied or validated.
+
+## Primary workers.dev staging origin
+
+The named primary workers.dev origin is now supported when worker.name matches the first host label and preview_urls remains false. See cloudflare-staging-target.md. The earlier blanket workers.dev restriction applies to alternate aliases, not this explicitly selected primary staging host.
