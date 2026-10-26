@@ -1,15 +1,26 @@
 name: Native PostgreSQL concurrency gate
 'on':
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/native-postgres.yml
+      - database/postgres/**
+      - tests/native/**
+      - tests/postgres/bootstrap.sql
 permissions:
   contents: read
 jobs:
   native:
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: [17, 18]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     services:
       postgres:
-        image: postgres:18
+        image: postgres:${{ matrix.postgres }}
         env:
           POSTGRES_PASSWORD: followkit-disposable-ci-only
         ports:
@@ -42,3 +53,4 @@ jobs:
             echo "Native concurrency iteration ${iteration}/3"
             npm --prefix tests/native test
           done
+
