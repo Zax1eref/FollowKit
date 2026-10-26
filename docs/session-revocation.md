@@ -33,3 +33,8 @@ Afterward, rerun two-account read/write checks with fresh sessions to confirm no
 If legitimate sessions fail, first inspect whether a current access token contains a provider-issued session_id and whether its corresponding session exists; sign in again before considering rollback. A rollback restoring the four function definitions from migration 004 would reopen the measured post-logout access window. Do not disable session validation merely to make a test pass, and do not grant client access to auth.sessions.
 
 Provider guidance: [session revocation checks](https://supabase.com/docs/guides/auth/sessions#how-to-ensure-an-access-token-jwt-cannot-be-used-after-a-user-signs-out).
+
+
+## Native CI result
+
+[Run 40390547716](https://github.com/Zax1eref/FollowKit/actions/runs/40390547716) completed successfully on PostgreSQL 17 and 18. Both jobs passed the new session suite and all six native groups in three fresh-database iterations, including committed session removal observed from another connection. These use simulated provider identities. The post-migration live HTTP logout retest remains pending.
