@@ -9,3 +9,14 @@ test('SDK failures are sanitized and logout failure remains blocked until retry'
 test('duplicate requests are blocked and late login cannot undo signout',async()=>{let resolve,calls=0;const {controller:c,event,user}=setup({signInWithPassword:()=>{calls++;return new Promise(r=>resolve=r)}});const pending=c.run('login',{email:'a@b.test',password:'x'});await c.run('login',{email:'a@b.test',password:'x'});assert.equal(calls,1);event('SIGNED_OUT',null);resolve({data:{session:{user}}});await pending;assert.equal(c.getState().view,'login');assert.equal(c.getState().busy,false)});
 test('dispose unsubscribes and ignores pending callbacks',()=>{const {controller:c,event,unsubscribed,user}=setup();c.dispose();event('SIGNED_IN',{user});assert.equal(c.getState().view,'login');assert.equal(unsubscribed(),true)});
 test('rejects non-exact HTTPS callback origins',()=>{for(const origin of ['http://app.test','https://app.test/path','https://app.test/','https://u:p@app.test'])assert.throws(()=>createAuthController({auth:{},origin}))});
+
+test('unconfirmed email gets an actionable message without revealing provider error text',async()=>{
+ for(const code of ['email_not_confirmed','invalid_credentials','unknown']){
+  const {controller:c}=setup({signInWithPassword:async()=>({error:{code,message:'DO_NOT_EXPOSE'}})});
+  assert.equal(await c.run('login',{email:'a@b.test',password:'fixture'}),false);
+  assert.equal(c.getState().view,'login');assert.equal(c.getState().busy,false);
+  assert.doesNotMatch(c.getState().message,/DO_NOT_EXPOSE/);
+  if(code==='email_not_confirmed')assert.match(c.getState().message,/ยังไม่ได้ยืนยันอีเมล/);
+  else assert.equal(c.getState().message,'เข้าสู่ระบบไม่ได้ ตรวจอีเมลและรหัสผ่าน');
+ }
+});

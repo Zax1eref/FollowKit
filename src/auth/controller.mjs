@@ -30,7 +30,7 @@ export function createAuthController({auth,origin,onChange=()=>{}}){
    if(action==='update')result=await auth.updateUser({password});
    if(action==='logout')result=await auth.signOut({scope:'global'});
    if(disposed||current!==epoch)return false;
-   if(result?.error)throw Error('provider_failure');
+   if(result?.error)throw Object.assign(Error('provider_failure'),{code:result.error.code});
    if(action==='login'){
     const session=result?.data?.session;
     emit({view:verified(session)?'signed_in':'login',email:verified(session)?session.user.email||'':'',message:verified(session)?'เข้าสู่ระบบแล้ว':'กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ'});
@@ -40,8 +40,8 @@ export function createAuthController({auth,origin,onChange=()=>{}}){
    if(action==='update'){recovery=false;emit({view:'signed_in',message:'เปลี่ยนรหัสผ่านแล้ว กรุณาออกจากระบบและเข้าสู่ระบบใหม่'})}
    if(action==='logout'){recovery=false;emit({view:'login',email:'',message:'ออกจากระบบแล้ว'})}
    return true;
-  }catch{
-   if(!disposed&&current===epoch)emit({...(action==='logout'?{view:'logout_failed',email:''}:{}),message:action==='login'?'เข้าสู่ระบบไม่ได้ ตรวจอีเมลและรหัสผ่าน':action==='logout'?'ยังยืนยันการออกจากระบบไม่ได้ กรุณาลองอีกครั้ง':'ดำเนินการไม่สำเร็จ กรุณาลองใหม่ภายหลัง'});
+  }catch(error){
+   if(!disposed&&current===epoch)emit({...(action==='logout'?{view:'logout_failed',email:''}:{}),message:action==='login'?(error?.code==='email_not_confirmed'?'ยังไม่ได้ยืนยันอีเมล กรุณาเปิดอีเมลยืนยันบัญชี ตรวจโฟลเดอร์สแปมด้วย แล้วเข้าสู่ระบบอีกครั้ง':'เข้าสู่ระบบไม่ได้ ตรวจอีเมลและรหัสผ่าน'):action==='logout'?'ยังยืนยันการออกจากระบบไม่ได้ กรุณาลองอีกครั้ง':'ดำเนินการไม่สำเร็จ กรุณาลองใหม่ภายหลัง'});
    return false;
   }finally{if(current===epoch)emit({busy:false})}
  }

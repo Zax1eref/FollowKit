@@ -3,4 +3,4 @@ npm warn Unknown env config "http-proxy". This will stop working in the next maj
 > build
 > node build.mjs
 
-Auth bundle verified: 250541 bytes; SDK bundled; no fixture/server inputs or external imports.
+Auth bundle verified: 251145 bytes; SDK bundled; no fixture/server inputs or external imports.
