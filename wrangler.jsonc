@@ -1,5 +1,5 @@
 {
-  "name": "followkit-api-candidate",
+  "name": "followkit",
   "main": "worker-dist/worker.mjs",
   "compatibility_date": "2026-07-30",
   "workers_dev": false,
