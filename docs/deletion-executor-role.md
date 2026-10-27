@@ -13,3 +13,13 @@ Verification: the composed PostgreSQL WASM test now enables RLS on simulated Aut
 This role is not yet provisioned, and the Worker/database transport is not yet wired. A future server login must receive only this capability set after hosted policy permission is resolved. Keep public deletion flags off. Native hosted-owner compatibility, managed Auth policy review, secret provisioning and isolated live acceptance tests remain required.
 
 References reviewed: https://supabase.com/docs/guides/database/postgres/roles and https://supabase.com/docs/guides/database/postgres/row-level-security .
+
+## Hosted installation finding
+
+Read-only catalog inspection on 27 October 2026 confirms the connected current/session role is postgres, rolsuper=false, rolbypassrls=true, and pg_has_role(postgres,supabase_auth_admin,MEMBER)=false. Both required Auth tables remain owned by supabase_auth_admin with RLS enabled. BYPASSRLS is not ownership authority to install a policy. The candidate now fails before role creation unless both tables exist and the installer is superuser or has effective owner privileges. Passing that check is only a prerequisite, not provider approval or a guarantee of installation.
+
+The current policy-based candidate cannot be installed through the available project connection. This is an implementation/deployment blocker, not a user login issue. Do not ask the operator for a more powerful password, change managed ownership, or turn RLS off. Keep deletion disabled. Resolve a provider-supported installation path, or redesign the Auth inspection boundary and review its privileges before wiring runtime credentials.
+
+Provider inquiry to review (not sent): On project kfnputowvfxozdiuhpzo, can a NOLOGIN/NOBYPASSRLS application role receive column-limited SELECT access to auth.users(id,email_confirmed_at,is_anonymous) and auth.sessions(id,user_id,not_after) through provider-supported role-specific policies, without changing managed ownership? If not, what supported server interface can verify session presence/absence and user absence for a deletion workflow? No password, access token, or user records are needed for this inquiry.
+
+Reference: https://supabase.com/docs/guides/platform/permissions confirms managed Auth ownership must remain supabase_auth_admin. No inquiry was sent and no production migration was applied.
