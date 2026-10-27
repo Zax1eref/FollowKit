@@ -1,0 +1,11 @@
+# Free-only billing gate — 27 October 2026
+
+Candidate SQL and adapter, not applied or deployed. Repository checkout currently returns payment_not_configured; no payment provider integration was found in the inspected server implementation. This does not prove the operator has no externally managed billing. The adapter therefore requires explicit server configuration `billingMode: 'no_provider_ever_enabled'`. It must not be enabled where a payment provider has ever been connected; request bodies cannot choose this mode.
+
+The private invoker function checks exact job/owner/current lease, archive/session evidence, tombstone, deleting free account and an existing free subscription row with no provider customer ID and no period end. Paid, trialing, active, past_due, canceled, expired, missing subscription and ambiguous provider metadata all fail pending. A local canceled status is not proof of external cancellation. No external provider is called, no refund/cancellation is issued, and no provider payload is logged.
+
+The function locks job, advisory owner, account and subscription, then records billing_basis=free_no_provider plus billing_settled_at. The adapter uses parameters and autocommit. Post-purge retries require that retained basis/evidence and app_purged_at; missing account data alone cannot establish free status. No client function/table grants are added. Future billing writers must reject deleting/tombstoned owners and use compatible account locks; this gate cannot reconcile out-of-band subscriptions or future provider events.
+
+Verification: `node tests/postgres/deletion-billing.mjs`, two PostgreSQL WASM groups pass. They cover all non-free subscription states, paid plan, provider ID, period end, missing subscription, active account, client denial, repeated evidence and retry after app purge. Fixtures are isolated and no live rows or payment systems are touched. No full production cancellation claim is made.
+
+Before production: operator-confirmed billing mode, native concurrency validation, hosted advisors, job admission/recent-auth recovery, restricted worker connection/role, evidence writers, lease renewal and retained backup policy. Do not db push the historical mixed migration layout. No user deployment is needed yet.
