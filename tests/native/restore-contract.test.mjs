@@ -9,7 +9,7 @@ test('retained deletion checkpoint normalizes UUIDs and deduplicates subjects',(
  assert.deepEqual(deletionSubjects(bytes,checkpoint),[id]);
 });
 test('missing stale wrong-source malformed and tampered checkpoints fail closed',()=>{
- for(const [data,expected] of [[null,checkpoint],[bytes,null],[bytes,{...checkpoint,sequence:3}],[bytes,{...checkpoint,source:'other'}],[Buffer.from('{}'),checkpoint]])assert.throws(()=>deletionSubjects(data,expected),/invalid_deletion_checkpoint/);
+ for(const [data,expected] of [[null,checkpoint],[bytes,null],[bytes,{...checkpoint,sequence:3}],[bytes,{...checkpoint,source:'other'}],[bytes,{...checkpoint,source:undefined}],[Buffer.from('{}'),checkpoint]])assert.throws(()=>deletionSubjects(data,expected),/invalid_deletion_checkpoint/);
  for(const change of [{sequence:0},{sequence:1.5},{subjects:['not-a-uuid']},{subjects:null},{format:'other'}]){
   const data=Buffer.from(JSON.stringify({...manifest,...change}));
   assert.throws(()=>deletionSubjects(data,{...checkpoint,sha256:digest(data)}),/invalid_deletion_checkpoint/);

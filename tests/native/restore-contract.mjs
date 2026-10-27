@@ -4,7 +4,7 @@ export const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 // A hash alone does not authenticate a production deletion authority.
 export function deletionSubjects(bytes, checkpoint) {
   const fail = () => {throw Error('invalid_deletion_checkpoint');};
-  if (!Buffer.isBuffer(bytes) || bytes.length > 65536 || !checkpoint || digest(bytes) !== checkpoint.sha256) fail();
+  if (!Buffer.isBuffer(bytes) || bytes.length > 65536 || !checkpoint || typeof checkpoint.source !== 'string' || !checkpoint.source || digest(bytes) !== checkpoint.sha256) fail();
   let data; try {data = JSON.parse(bytes.toString('utf8'));} catch {fail();}
   if (data?.format !== 'followkit-deletion-fixture-v1' || data.source !== checkpoint.source ||
       !Number.isSafeInteger(data.sequence) || !Number.isSafeInteger(checkpoint.sequence) || data.sequence < 1 || data.sequence !== checkpoint.sequence ||
