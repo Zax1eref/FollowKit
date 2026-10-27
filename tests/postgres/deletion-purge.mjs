@@ -2,6 +2,7 @@ import {PGlite} from '@electric-sql/pglite';
 import {readFile,readdir} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import {deletionReadiness} from '../../src/server/deletion-readiness.mjs';
+import {deletionCompletion} from '../../src/server/deletion-completion.mjs';
 import {deletionSessionInspector} from '../../src/server/deletion-sessions.mjs';
 import {deletionAuth} from '../../src/server/deletion-auth.mjs';
 const db=new PGlite(),q=(s,p=[])=>db.query(s,p);
@@ -12,7 +13,7 @@ try{
  await db.exec(await readFile(new URL('bootstrap.sql',import.meta.url),'utf8'));
  for(const f of ['001-foundation.sql','002-mutations.sql','003-network-contract.sql','004-account-provisioning.sql'])await db.exec(await readFile(new URL('../../database/postgres/'+f,import.meta.url),'utf8'));
  const dir=new URL('../../supabase/migrations/',import.meta.url);
- for(const f of (await readdir(dir)).filter(f=>/deletion_job_queue|deletion_app_purge/.test(f)).sort())await db.exec(await readFile(new URL(f,dir),'utf8'));
+ for(const f of (await readdir(dir)).filter(f=>/deletion_job_queue|deletion_app_purge|deletion_completion/.test(f)).sort())await db.exec(await readFile(new URL(f,dir),'utf8'));
  for(const owner of [A,B]){
   await q('INSERT INTO auth.users(id) VALUES($1)',[owner]);await q('INSERT INTO public.fk_accounts(id) VALUES($1)',[owner]);
   const c=(await q("INSERT INTO public.fk_customers(account_id,name) VALUES($1,'fixture') RETURNING id",[owner])).rows[0].id;
@@ -76,5 +77,28 @@ try{
  await assert.rejects(()=>deletionAuth({admin,readiness:ready}).removeIdentity(context),/deletion_identity_pending/);
  assert.equal(deletes,0);assert.equal(await ready(context),false);
  console.log('PASS database readiness rejects missing evidence/resurrected account and fences Auth deletion after lease replacement');
+
+ const current=(await q('SELECT lease_token FROM followkit_private.deletion_jobs WHERE id=$1',[id])).rows[0].lease_token;
+ const complete=deletionCompletion({database:db,leaseToken:current});
+ await assert.rejects(()=>complete(context),/deletion_completion_pending/); // Auth user still exists.
+ for(const role of ['anon','authenticated']){await db.exec('SET ROLE '+role);await assert.rejects(()=>complete(context),/deletion_completion_pending/);await db.exec('RESET ROLE');}
+ // TEST ONLY: stand in for the supported provider deletion API.
+ await q('DELETE FROM auth.users WHERE id=$1',[A]);
+ await assert.rejects(()=>deletionCompletion({database:db,leaseToken:token})(context),/deletion_completion_pending/);
+ await assert.rejects(()=>complete({jobId:id,owner:B}),/deletion_completion_pending/);
+ for(const column of ['archive_verified_at','sessions_revoked_at','billing_settled_at','app_purged_at']){
+  await db.exec('BEGIN');await q(`UPDATE followkit_private.deletion_jobs SET ${column}=NULL WHERE id=$1`,[id]);
+  await assert.rejects(()=>complete(context),/deletion_completion_pending/);await db.exec('ROLLBACK');
+ }
+ await db.exec('BEGIN');await q("UPDATE followkit_private.deletion_jobs SET lease_until=now()-interval '1 second' WHERE id=$1",[id]);await assert.rejects(()=>complete(context),/deletion_completion_pending/);await db.exec('ROLLBACK');
+ assert.deepEqual(await complete(context),{done:true});
+ assert.deepEqual(await complete(context),{done:true});
+ const finished=(await q('SELECT * FROM followkit_private.deletion_jobs WHERE id=$1',[id])).rows[0];
+ assert.ok(finished.completed_at);assert.equal(finished.lease_token,null);assert.equal(finished.completed_lease_token,current);
+ assert.equal((await q('SELECT * FROM followkit_private.claim_deletion_job()')).rows.length,0);
+ await assert.rejects(()=>q('UPDATE followkit_private.deletion_jobs SET completed_at=NULL WHERE id=$1',[id]),e=>e.code==='23514');
+ // Even an acknowledged completion must detect inconsistent restored state on retry.
+ await q('INSERT INTO auth.users(id) VALUES($1)',[A]);await assert.rejects(()=>complete(context),/deletion_completion_pending/);
+ console.log('PASS completion checks Auth/evidence/lease/owner, commits once, rejects resurrection and cannot reopen');
  console.log('PASS all six app tables purged, retry safe; other owner/Auth/job/tombstone/global events preserved');
 }finally{await db.close();}

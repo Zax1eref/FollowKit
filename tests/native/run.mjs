@@ -18,7 +18,7 @@ try{
  await owner.query(await source('../postgres/bootstrap.sql'));
  for(const file of ['001-foundation.sql','002-mutations.sql','003-network-contract.sql','004-account-provisioning.sql'])await owner.query(await source('../../database/postgres/'+file));
  await owner.query(await source('../../supabase/migrations/20261026194730_require_active_session.sql'));
- for(const file of ['20261027044228_deletion_job_queue.sql','20261027044623_deletion_app_purge.sql'])await owner.query(await source('../../supabase/migrations/'+file));
+ for(const file of ['20261027044228_deletion_job_queue.sql','20261027044623_deletion_app_purge.sql','20261027050006_deletion_completion.sql'])await owner.query(await source('../../supabase/migrations/'+file));
  await owner.query('INSERT INTO auth.users(id,email_confirmed_at) VALUES($1,now()),($2,now()),($3,now()),($4,now())',[A,B,C,D]);
  await owner.query('INSERT INTO auth.sessions(id,user_id) SELECT id,id FROM auth.users');
  console.log('ENGINE '+(await owner.query('SELECT version() v')).rows[0].v);
@@ -58,6 +58,17 @@ try{
   assert.equal((await owner.query('SELECT count(*)::int n FROM followkit_private.account_tombstones WHERE subject_id=$1',[A])).rows[0].n,1);
   assert.equal((await owner.query('SELECT completed_at FROM followkit_private.deletion_jobs WHERE id=$1',[deletionJob])).rows[0].completed_at,null);
  });
- console.log(`RESULT ${passed}/9 native multi-connection groups passed; provider identity is simulated, not live Supabase.`);
+
+ await check('completion verifies Auth absence then acknowledges retries from both connections',async()=>{
+  const complete='SELECT followkit_private.complete_deletion_job($1,$2,$3) done';
+  await assert.rejects(()=>one.query(complete,[deletionJob,A,newLease]),e=>e.code==='42501');
+  // Test-only provider stand-in; never issue these mutations to hosted Auth.
+  await owner.query('DELETE FROM auth.sessions WHERE user_id=$1',[A]);
+  await owner.query('DELETE FROM auth.users WHERE id=$1',[A]);
+  const results=await Promise.all([one.query(complete,[deletionJob,A,newLease]),two.query(complete,[deletionJob,A,newLease])]);
+  assert.ok(results.every(r=>r.rows[0].done===true));
+  assert.equal((await owner.query('SELECT * FROM followkit_private.claim_deletion_job()')).rows.length,0);
+ });
+ console.log(`RESULT ${passed}/10 native multi-connection groups passed; provider identity is simulated, not live Supabase.`);
 }catch(e){console.error('FAIL after '+passed+' native groups: '+e.message);process.exitCode=1}
 finally{for(const c of clients){try{await c.query('ROLLBACK')}catch{}await c.end().catch(()=>{})}if(created){await admin.query('DROP DATABASE '+name+' WITH (FORCE)').catch(()=>{console.error('Cleanup failed for disposable database '+name);process.exitCode=1});for(const r of [role,anon])await admin.query('DROP ROLE IF EXISTS '+r).catch(()=>{console.error('Cleanup failed for disposable role '+r);process.exitCode=1})}await admin.end().catch(()=>{})}
