@@ -18,6 +18,7 @@ try{
  await owner.query(await source('../postgres/bootstrap.sql'));
  for(const file of ['001-foundation.sql','002-mutations.sql','003-network-contract.sql','004-account-provisioning.sql'])await owner.query(await source('../../database/postgres/'+file));
  await owner.query(await source('../../supabase/migrations/20261026194730_require_active_session.sql'));
+ for(const file of ['20261027044228_deletion_job_queue.sql','20261027044623_deletion_app_purge.sql'])await owner.query(await source('../../supabase/migrations/'+file));
  await owner.query('INSERT INTO auth.users(id,email_confirmed_at) VALUES($1,now()),($2,now()),($3,now()),($4,now())',[A,B,C,D]);
  await owner.query('INSERT INTO auth.sessions(id,user_id) SELECT id,id FROM auth.users');
  console.log('ENGINE '+(await owner.query('SELECT version() v')).rows[0].v);
@@ -27,6 +28,36 @@ try{
  await check('committed deletion marker wins against an overlapping setup request',async()=>{await one.query('RESET ROLE');await one.query('BEGIN');await one.query("INSERT INTO followkit_private.deletion_ledger(subject_id,state) VALUES($1,'requested')",[C]);await as(two,C);const pid=(await two.query('SELECT pg_backend_pid() p')).rows[0].p;const pending=provision(two).then(()=>({success:true}),e=>({error:e.message}));let waiting=false;for(let i=0;i<50;i++){const row=(await owner.query('SELECT wait_event FROM pg_stat_activity WHERE pid=$1',[pid])).rows[0];if(row?.wait_event==='advisory'){waiting=true;break}await new Promise(r=>setTimeout(r,50))}assert.equal(waiting,true);await one.query('COMMIT');assert.match((await pending).error,/account_blocked/);assert.equal((await owner.query('SELECT count(*)::int n FROM public.fk_accounts WHERE id=$1',[C])).rows[0].n,0)});
  await check('rolled-back deletion marker permits waiting setup without retaining tombstone',async()=>{await one.query('BEGIN');await one.query("INSERT INTO followkit_private.deletion_ledger(subject_id,state) VALUES($1,'requested')",[D]);await as(two,D);const pid=(await two.query('SELECT pg_backend_pid() p')).rows[0].p;const pending=provision(two).then(r=>({result:r}),e=>({error:e}));let waiting=false;for(let i=0;i<50;i++){if((await owner.query('SELECT wait_event FROM pg_stat_activity WHERE pid=$1',[pid])).rows[0]?.wait_event==='advisory'){waiting=true;break}await new Promise(r=>setTimeout(r,50))}assert.equal(waiting,true);await one.query('ROLLBACK');const done=await pending;if(done.error)throw done.error;assert.equal(done.result.rows[0].a.id,D);assert.equal((await owner.query('SELECT count(*)::int n FROM followkit_private.account_tombstones WHERE subject_id=$1',[D])).rows[0].n,0)});
  await check('committed session removal blocks subsequent reads and writes on another connection',async()=>{await as(one,B);assert.equal((await one.query('SELECT followkit_private.active_owner() id')).rows[0].id,B);await owner.query('DELETE FROM auth.sessions WHERE user_id=$1',[B]);await assert.rejects(()=>one.query('SELECT * FROM public.fk_accounts'),e=>e.code==='42501');await assert.rejects(()=>one.query("SELECT public.fk_save_customer('revoked')"),e=>e.code==='42501');await as(two,A);assert.equal((await two.query('SELECT followkit_private.active_owner() id')).rows[0].id,A)});
- console.log(`RESULT ${passed}/6 native multi-connection groups passed; provider identity is simulated, not live Supabase.`);
+
+ let deletionJob,firstLease,newLease;
+ await check('two native claimers receive only one active deletion lease',async()=>{
+  await one.query('RESET ROLE');await two.query('RESET ROLE');
+  deletionJob=(await owner.query('INSERT INTO followkit_private.deletion_jobs(subject_id,confirmed_at) VALUES($1,now()) RETURNING id',[A])).rows[0].id;
+  const claims=await Promise.all([one.query('SELECT * FROM followkit_private.claim_deletion_job()'),two.query('SELECT * FROM followkit_private.claim_deletion_job()')]);
+  assert.equal(claims.reduce((n,r)=>n+r.rows.length,0),1);firstLease=claims.flatMap(r=>r.rows)[0].lease_token;
+ });
+ await check('replacement lease fences stale purge and preserves every quote',async()=>{
+  await owner.query("UPDATE followkit_private.deletion_jobs SET lease_until=now()-interval '1 second',archive_verified_at=now(),sessions_revoked_at=now(),billing_settled_at=now() WHERE id=$1",[deletionJob]);
+  newLease=(await two.query('SELECT * FROM followkit_private.claim_deletion_job()')).rows[0].lease_token;
+  assert.notEqual(newLease,firstLease);
+  await owner.query("UPDATE public.fk_accounts SET state='deleting' WHERE id=$1",[A]);
+  await assert.rejects(()=>one.query('SELECT followkit_private.purge_deletion_app($1,$2)',[deletionJob,firstLease]),e=>e.code==='42501');
+  assert.equal((await owner.query('SELECT count(*)::int n FROM public.fk_quotes WHERE account_id=$1',[A])).rows[0].n,10);
+ });
+ await check('purge transaction fences claimers; rollback restores data before retry',async()=>{
+  await one.query('BEGIN');
+  await one.query('SELECT followkit_private.purge_deletion_app($1,$2)',[deletionJob,newLease]);
+  assert.equal((await two.query('SELECT * FROM followkit_private.claim_deletion_job()')).rows.length,0);
+  assert.equal((await owner.query('SELECT count(*)::int n FROM public.fk_quotes WHERE account_id=$1',[A])).rows[0].n,10);
+  await one.query('ROLLBACK');
+  assert.equal((await owner.query('SELECT count(*)::int n FROM public.fk_quotes WHERE account_id=$1',[A])).rows[0].n,10);
+  await two.query('SELECT followkit_private.purge_deletion_app($1,$2)',[deletionJob,newLease]);
+  await one.query('SELECT followkit_private.purge_deletion_app($1,$2)',[deletionJob,newLease]);
+  assert.equal((await owner.query('SELECT count(*)::int n FROM public.fk_accounts WHERE id=$1',[A])).rows[0].n,0);
+  assert.equal((await owner.query('SELECT count(*)::int n FROM public.fk_quotes WHERE account_id=$1',[B])).rows[0].n,1);
+  assert.equal((await owner.query('SELECT count(*)::int n FROM followkit_private.account_tombstones WHERE subject_id=$1',[A])).rows[0].n,1);
+  assert.equal((await owner.query('SELECT completed_at FROM followkit_private.deletion_jobs WHERE id=$1',[deletionJob])).rows[0].completed_at,null);
+ });
+ console.log(`RESULT ${passed}/9 native multi-connection groups passed; provider identity is simulated, not live Supabase.`);
 }catch(e){console.error('FAIL after '+passed+' native groups: '+e.message);process.exitCode=1}
 finally{for(const c of clients){try{await c.query('ROLLBACK')}catch{}await c.end().catch(()=>{})}if(created){await admin.query('DROP DATABASE '+name+' WITH (FORCE)').catch(()=>{console.error('Cleanup failed for disposable database '+name);process.exitCode=1});for(const r of [role,anon])await admin.query('DROP ROLE IF EXISTS '+r).catch(()=>{console.error('Cleanup failed for disposable role '+r);process.exitCode=1})}await admin.end().catch(()=>{})}
