@@ -1,6 +1,8 @@
 import {PGlite} from '@electric-sql/pglite';
 import {readFile,readdir} from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import {deletionReadiness} from '../../src/server/deletion-readiness.mjs';
+import {deletionAuth} from '../../src/server/deletion-auth.mjs';
 const db=new PGlite(),q=(s,p=[])=>db.query(s,p);
 const A='11111111-1111-4111-8111-111111111111',B='22222222-2222-4222-8222-222222222222';
 const tables=['fk_followups','fk_quotes','fk_customers','fk_subscriptions','fk_accounts'];
@@ -22,6 +24,9 @@ try{
  const id=(await q('INSERT INTO followkit_private.deletion_jobs(subject_id,confirmed_at) VALUES($1,now()) RETURNING id',[A])).rows[0].id;
  const token=(await q('SELECT * FROM followkit_private.claim_deletion_job()')).rows[0].lease_token;
  const purge=()=>q('SELECT followkit_private.purge_deletion_app($1,$2)',[id,token]);
+ const ready=deletionReadiness({database:db,leaseToken:token});
+ const context={jobId:id,owner:A};
+ assert.equal(await ready(context),false);
  const beforeA=await snapshot(A),beforeB=await snapshot(B);
  await assert.rejects(purge,e=>e.code==='42501');
  for(const column of ['archive_verified_at','sessions_revoked_at','billing_settled_at']){await q(`UPDATE followkit_private.deletion_jobs SET ${column}=now() WHERE id=$1`,[id]);await assert.rejects(purge,e=>e.code==='42501');}
@@ -45,5 +50,21 @@ try{
  assert.equal((await q('SELECT * FROM followkit_private.payment_events')).rows.length,1);
  const j=(await q('SELECT * FROM followkit_private.deletion_jobs WHERE id=$1',[id])).rows[0];assert.ok(j.app_purged_at);assert.equal(j.completed_at,null);
  assert.equal((await q('SELECT * FROM followkit_private.deletion_ledger WHERE subject_id=$1',[A])).rows.length,1);
+
+ assert.equal(await ready(context),true);
+ assert.equal(await ready({jobId:id,owner:B}),false);
+ for(const column of ['archive_verified_at','sessions_revoked_at','billing_settled_at','app_purged_at']){
+  await db.exec('BEGIN');await q(`UPDATE followkit_private.deletion_jobs SET ${column}=NULL WHERE id=$1`,[id]);
+  assert.equal(await ready(context),false);await db.exec('ROLLBACK');
+ }
+ await db.exec('BEGIN');await q('DELETE FROM followkit_private.account_tombstones WHERE subject_id=$1',[A]);assert.equal(await ready(context),false);await db.exec('ROLLBACK');
+ await db.exec('BEGIN');await q('INSERT INTO public.fk_accounts(id) VALUES($1)',[A]);assert.equal(await ready(context),false);await db.exec('ROLLBACK');
+ let deletes=0;
+ const admin={getUserById:async()=>({data:{user:{id:A}},error:null}),deleteUser:async()=>{deletes++;return {error:null}}};
+ // Lease changes during provider lookup: second readiness check must stop DELETE.
+ admin.getUserById=async()=>{await q('UPDATE followkit_private.deletion_jobs SET lease_token=gen_random_uuid() WHERE id=$1',[id]);return {data:{user:{id:A}},error:null}};
+ await assert.rejects(()=>deletionAuth({admin,readiness:ready}).removeIdentity(context),/deletion_identity_pending/);
+ assert.equal(deletes,0);assert.equal(await ready(context),false);
+ console.log('PASS database readiness rejects missing evidence/resurrected account and fences Auth deletion after lease replacement');
  console.log('PASS all six app tables purged, retry safe; other owner/Auth/job/tombstone/global events preserved');
 }finally{await db.close();}
