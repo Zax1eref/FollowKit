@@ -1,0 +1,15 @@
+# Supported Auth identity-removal adapter — 27 October 2026
+
+Implemented `src/server/deletion-auth.mjs`, not wired to a production worker. No credentials obtained, no remote user removed, and no production deployment/configuration change.
+
+The adapter accepts a server-owned `supabase.auth.admin` instance and trusted readiness(context) verifier. It calls the supported getUserById/deleteUser methods. It validates canonical UUIDs, snapshots context, verifies readiness, looks up exactly that owner, and rechecks readiness after the network lookup before hard deletion (`shouldSoftDelete=false`). It always reads back after a settled deletion attempt. Only an explicit `user_not_found` with HTTP 404 and no user object establishes absence. Authorization errors, generic 404, missing/mismatched identity, timeout and successful DELETE with a still-present user are pending. Provider response bodies and errors are never returned to the caller.
+
+An already-absent user is a successful idempotent retry only after readiness succeeds. Lost acknowledgements that settle can be reconciled by readback; timed-out operations remain pending for a later retry. Calls have bounded waits, but a timeout does not cancel underlying SDK requests. A previously authorized in-flight deletion may still finish. Durable irreversible confirmation, idempotency and job ownership are therefore mandatory, and a lease is not a provider-side cancellation fence.
+
+readiness is a required integration dependency, NOT implemented here: it must verify current durable job owner/lease, tombstone, archive evidence, session revocation, billing settlement and app_purged_at, including actual purge postconditions. Never pass `async()=>true` in production. Tests use that stub only to isolate the adapter. This adapter supplies the coordinator's removeIdentity stage, not revokeSessions. No assumptions are made about a global logout-by-user-ID API; supported session-revocation integration is still pending. Do not manipulate managed Auth tables directly.
+
+The existing pinned supabase-js 2.118.0 is reused for the SDK contract test; no dependency or lockfile changes. Node suite 156/156 passes (five new Auth groups). `node tools/auth/deletion-admin-test.mjs` tests the actual pinned SDK's GET/DELETE shape, explicit hard-deletion body, error decoding and retry behavior with mocked transport. These results are not live Supabase validation.
+
+Provision a privileged server credential only in a restricted deletion service's secret store when integration is ready. Do not put it in the public application Worker, browser bundle, repository or chat. No secret configuration/deployment command is needed yet.
+
+References reviewed: https://supabase.com/docs/reference/javascript/auth-admin-deleteuser and https://supabase.com/docs/reference/javascript/auth-admin-getuserbyid; Supabase MCP Auth error lookup for user_not_found. Actual provider behavior with Storage-owned objects and custom database dependencies must be tested with disposable accounts before activation; errors stay pending.
