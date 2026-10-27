@@ -1,0 +1,12 @@
+{
+  "name": "followkit-deletion-archive",
+  "main": "src/server/deletion-archive-worker.mjs",
+  "compatibility_date": "2026-07-30",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "vars": { "ARCHIVE_SOURCE": "kfnputowvfxozdiuhpzo" },
+  "r2_buckets": [
+    { "binding": "DELETION_ARCHIVE", "bucket_name": "followkit-deletion-ledger" }
+  ]
+}

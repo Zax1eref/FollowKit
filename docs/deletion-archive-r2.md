@@ -1,6 +1,6 @@
 # Independent deletion archive preparation — 27 October 2026
 
-Status: adapter implemented and tested locally; remote R2 subscription/bucket not confirmed or provisioned. The user reported R2 is not enabled or they are unsure. No billing, account configuration, live binding, deletion API, external tombstone upload or live database change occurred.
+Status: user reports the bucket has been created. Its settings have not been independently verified. The adapter and private RPC service are tested locally; remote deployment, binding verification and durable write verification remain pending. No live deletion, external tombstone upload or database change occurred.
 
 ## Implemented boundary
 
@@ -34,3 +34,27 @@ R2 separates this archive from a Supabase database restore, but sharing Cloudfla
 A plugin-directory search found no Cloudflare/R2 connector in this session. That does not prove no integration exists elsewhere; setup currently needs the user's Cloudflare dashboard or an explicitly connected supported tool. No credentials should be pasted into chat.
 
 References checked: [R2 setup](https://developers.cloudflare.com/r2/get-started/), [Workers binding and conditional API](https://developers.cloudflare.com/r2/api/workers/workers-api-reference/), [bucket locks](https://developers.cloudflare.com/r2/buckets/bucket-locks/), [pricing](https://developers.cloudflare.com/r2/pricing/).
+
+
+## Deploy the private archive service
+
+The user reported bucket creation on 27 October 2026. Confirm its name is `followkit-deletion-ledger`, Standard storage, public development URL disabled, and no public custom domain.
+
+From the updated repository, using an existing authorized Cloudflare login:
+
+```powershell
+git pull --ff-only
+npx --yes wrangler@4.152.0 deploy --config wrangler.deletion-archive.jsonc
+```
+
+If Wrangler requests authentication, complete its browser login locally. Do not share credentials. This command deploys a separate Worker, `followkit-deletion-archive`; it does not modify the public application's Wrangler configuration. No build step or additional package installation in the repository is needed: Wrangler bundles the source module.
+
+Configuration disables workers.dev and preview URLs and declares no routes. The default HTTP handler always returns 404. The named `DeletionArchive` entrypoint exposes only `retain(subject)` through a platform service binding. No consumer binding is added yet: only a trusted deletion orchestrator that verifies deletion authority should receive this capability. Anyone able to modify Worker bindings in the Cloudflare account is inside this administrative trust boundary.
+
+The configured source is `kfnputowvfxozdiuhpzo`, and R2 is accessed through `DELETION_ARCHIVE`; no R2 API key is needed. Deploy success establishes configuration, not proof of a retained remote marker. Keep the bucket private; do not enable a public URL to test it.
+
+Local service verification: `node tools/worker/deletion-archive-service-test.mjs`. The actual workerd RPC binding rejects invalid subjects without a write, retains a synthetic marker once across retries, and HTTP GET/POST/DELETE cannot write. The test uses ephemeral local storage only.
+
+Still pending: remote synthetic verification, retention policy, authorized deletion orchestration and complete independent restore checkpoints. Deployment alone does not activate account deletion.
+
+References: [Cloudflare service binding RPC](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/).
