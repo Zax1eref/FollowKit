@@ -1,0 +1,15 @@
+# Confirmed deletion admission — 27 October 2026
+
+Internal service and candidate migration, not a public HTTP route and not deployed. Existing public Worker still exposes no account-deletion endpoint. No live user or job was modified.
+
+The service accepts only an exact single-field body `{confirmation: 'DELETE MY ACCOUNT'}` plus a transient bearer token supplied by its trusted HTTP boundary. Owner/session are derived from SDK getClaims after signature verification, with exact project issuer, authenticated audience/role, non-anonymous status and expiry checks. A password AMR timestamp within five minutes is required; token iat, refresh, recovery and OTP entries do not establish recent password authentication. Current getUser must match and be email-confirmed/non-anonymous. This first policy is password-login-only, matching the current app; OAuth/OTP/MFA-specific reauthentication UX is not implemented. Never use unverified decode or user_metadata here.
+
+The private SECURITY INVOKER SQL function rechecks active managed session ownership/expiry and confirmed non-anonymous user, serializes on the provisioning advisory lock/account row, deduplicates an existing owner job, and atomically inserts confirmation plus changes the account to deleting (retaining a tombstone through the existing trigger). It does not purge app data, write R2, or revoke sessions. Browser roles have no execute grant. The SQL function trusts the server's verified authentication timestamp; it is NOT suitable as a public RPC.
+
+The confirmation is irreversible once committed. Admission blocks application access even if later R2 work fails; archive acknowledgement still precedes every purge. A canceled/mismatched confirmation creates no job. A database timeout can have an uncertain commit: do not report cancellation or blindly create another job; retry/status lookup must reconcile by authenticated owner. UUID deduplication preserves the original job. Tokens/passwords are not persisted in jobs or returned.
+
+Node suite 167/167 passes with four new admission groups: trusted identity mapping, exact confirmation/owner injection, fresh refresh/recovery versus old password, issuer/expiry/anonymous/provider mismatch. Two actual PostgreSQL WASM groups cover client/foreign-session/stale-auth denial, atomic rollback, duplicate confirmation, other-owner preservation and revoked-session rejection. Provider claims are mocked in unit tests; no live recent-auth validation occurred.
+
+Still required before activation: actual HTTP same-origin/CSRF boundary, bounded JSON parsing and rate limits, confirmation UI explaining irreversible consequences, recent-login and pending-job recovery, SDK/live verification, native concurrency tests, restricted worker wiring and retention policy. The session token must be used transiently for provider signout while available; jobs with remaining sessions and no usable token must stay pending. No user deployment command is needed yet.
+
+References reviewed: https://supabase.com/docs/guides/auth/jwt-fields ; https://supabase.com/docs/reference/javascript/auth-getclaims .
