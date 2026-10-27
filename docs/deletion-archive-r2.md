@@ -58,3 +58,31 @@ Local service verification: `node tools/worker/deletion-archive-service-test.mjs
 Still pending: remote synthetic verification, retention policy, authorized deletion orchestration and complete independent restore checkpoints. Deployment alone does not activate account deletion.
 
 References: [Cloudflare service binding RPC](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/).
+
+## Remote diagnostic through the deployed service
+
+The user supplied a successful deployment log for version `9bfb4379-725e-4328-bed9-f51fc5a61ace`, including the expected R2 binding. This is user-supplied deployment evidence, not yet a remote read/write result.
+
+The added `verifyStorage()` RPC accepts no inputs. It retains and reads back the fixed diagnostic object `tombstones/v1/diagnostic-v1/00000000-0000-4000-8000-000000000001.json` twice. This one object remains for repeat verification; it is not a real account marker. Restore reconciliation must select the exact production source `kfnputowvfxozdiuhpzo`, never combine diagnostic namespaces. No production tombstones are created or deleted by this probe.
+
+Update and deploy the service, then start the local-only caller:
+
+```powershell
+git pull --ff-only
+npx --yes wrangler@4.152.0 deploy --config wrangler.deletion-archive.jsonc
+npx --yes wrangler@4.152.0 dev --config wrangler.archive-probe.jsonc
+```
+
+Leave that terminal running. In a second PowerShell window:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8791/probe' -Headers @{'X-FollowKit-Probe'='1'} -TimeoutSec 60 | ConvertTo-Json
+```
+
+The caller runs locally, with `remote: true` on the service binding to the deployed named entrypoint. Do not use `--local` (would disable the remote binding), `--remote`, or deploy this caller. No public route or browser UI is needed. After recording the JSON, stop the first terminal with Ctrl+C. Errors or missing remote binding are not a pass; retain the sanitized failure result and investigate.
+
+The probe rejects GET, browser Origin requests, wrong host/path and missing explicit probe header. Its request never supplies a subject or arbitrary RPC method. Local tests verify these guards, retry/readback, isolated namespace and conflicting-object failure. Production error details are not returned.
+
+A successful result demonstrates service-to-R2 write/readback and idempotent retry at test time. It does not prove bucket retention locks, backup completeness, long-term durability, account deletion orchestration, or public bucket privacy; verify privacy in the dashboard separately. R2 operations may count toward account usage.
+
+Reference: [Cloudflare remote bindings](https://developers.cloudflare.com/workers/local-development/).
