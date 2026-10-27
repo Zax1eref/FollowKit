@@ -1,0 +1,15 @@
+# Gated deletion API and confirmation UI — 27 October 2026
+
+Source and rebuilt bundles prepared; no live deployment or feature activation. The current Wrangler configuration still lacks the enable flag and deletion bindings, so the route remains 404 and the UI remains hidden.
+
+The Worker recognizes POST /api/account/deletion only when FOLLOWKIT_DELETION_ENABLED is exactly true, DELETION_SERVICE.confirm exists and DELETION_RATE_LIMIT.limit exists. It advertises deletionEnabled only with that complete gate. No database or privileged Auth key enters the public Worker. The service binding must target the future restricted admission service, not the archive service.
+
+The HTTP boundary requires the exact application Origin, bearer authentication, JSON, a 1 KiB streamed body cap and ten-second body deadline. It authenticates the owner before applying the account-keyed rate limiter and forwards only the transient token and exact single-field confirmation to the internal service, which independently revalidates identity/recent login. Cookies, client owner fields, cross-site requests, malformed bodies and malformed service replies cannot admit a job. A 202 response means accepted, never erased; uncertain backend outcomes return a generic pending error. Timeouts do not cancel a database commit: owner-deduplicated admission and pending-job recovery remain necessary.
+
+The expected limiter API matches the Workers rate-limit binding. Its limits are approximate per Cloudflare location, not a strict global quota. No namespace, quota or binding has been provisioned in this change. Before enabling, configure the intended limiter and upstream abuse controls; do not bypass the dependency with an always-success stub.
+
+When enabled, the workspace offers a native modal with irreversible-intent explanation, recent-password-login instruction, exact DELETE MY ACCOUNT phrase, safe cancel focus and disabled controls while sending. Duplicate submission is ignored; identity changes clear the dialog and invalidate late responses. Accepted requests hide the workspace and show pending wording. Ambiguous outcomes advise status review rather than falsely announcing cancellation/completion. A self-service status/recovery route and integrated reauthentication screen are still pending; the current fallback refers the user to the operator. No claim that the browser UI is production-ready or fully accessibility audited is made.
+
+Validation: Node suite 172/172 passed, including all five HTTP groups; DOM tests cover feature disabled, confirmation, cancellation, duplicate submit and stale response. Existing bundled boot 9/9, workspace DOM 3/3 and workerd smoke 9/9 pass. Auth and Worker bundles rebuilt and boundary-checked; no server-only/admin SDK inputs enter the browser bundle. Provider/service/rate-limit calls are mocked. Visual browser verification and live integration remain pending.
+
+Reference: https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/ . Do not enable the feature until internal service, admission recovery, all migrations/roles, evidence writes, billing-mode decision and retention policy are complete.

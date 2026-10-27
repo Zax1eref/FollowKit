@@ -1,10 +1,11 @@
+import {mountDeletion} from './deletion-view.mjs';
 import {createClient} from '@supabase/supabase-js';
 import {mountWorkspace} from '../workspace/view.mjs';
 import {mountAuth} from './view.mjs';
 import {authConfiguration,completeCallback,createAccountBridge} from './session.mjs';
 const status=document.getElementById('status'),accountStatus=document.getElementById('account-status');
-let bridge,controller,client,workspace,ready=false,reading=false,sequence=0,provisioning=false;
-const clear=reason=>{sequence++;reading=false;provisioning=false;document.getElementById('onboarding').hidden=true;accountStatus.textContent=reason==='unauthorized'?'เซสชันหมดอายุ กรุณาออกจากระบบและเข้าสู่ระบบใหม่':['account_unavailable','account_blocked'].includes(reason)?'บัญชียังไม่พร้อมใช้งาน กรุณาติดต่อผู้ดูแล':'';workspace?.clear()};
+let deletion,bridge,controller,client,workspace,ready=false,reading=false,sequence=0,provisioning=false;
+const clear=reason=>{sequence++;reading=false;provisioning=false;document.getElementById('onboarding').hidden=true;accountStatus.textContent=reason==='unauthorized'?'เซสชันหมดอายุ กรุณาออกจากระบบและเข้าสู่ระบบใหม่':['account_unavailable','account_blocked'].includes(reason)?'บัญชียังไม่พร้อมใช้งาน กรุณาติดต่อผู้ดูแล':'';workspace?.clear();deletion?.clear()};
 function sync(state){
  if(state.view!=='signed_in'||state.busy){bridge?.clear();return}
  if(!ready||reading)return;
@@ -24,6 +25,7 @@ try{
  client=createClient(config.url,config.publishableKey,{global:{fetch:(input,init)=>{const target=new URL(typeof input==='string'?input:input.url||String(input));if(target.origin!==config.url||!target.pathname.startsWith('/auth/v1/'))throw Error('provider_origin_rejected');return fetch(input,{...init,credentials:'omit',redirect:'error'})}},auth:{flowType:'pkce',detectSessionInUrl:false,persistSession:true,autoRefreshToken:true,storage:localStorage,storageKey:'followkit-'+new URL(config.url).hostname}});
  bridge=createAccountBridge({auth:client.auth,origin:config.appOrigin,onClear:clear});
  workspace=mountWorkspace({api:bridge});
+ deletion=mountDeletion({api:bridge,enabled:config.deletionEnabled===true,onAccepted:()=>{workspace.clear();accountStatus.textContent='รับคำขอลบบัญชีแล้ว บัญชีถูกปิดการเข้าถึงระหว่างดำเนินการ ยังไม่ใช่การยืนยันว่าลบเสร็จ';}});
  controller=mountAuth({auth:client.auth,origin:config.appOrigin,isLocked:()=>!ready,onState:()=>queueMicrotask(()=>{if(controller)sync(controller.getState())})});
  // Disable interactions until callback exchange has completed. SDK callbacks are synchronous-only.
  for(const el of document.querySelectorAll('button,input'))el.disabled=true;

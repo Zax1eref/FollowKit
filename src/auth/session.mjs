@@ -4,7 +4,7 @@ export function authConfiguration(value,currentOrigin){
  const app=new URL(value.appOrigin),provider=new URL(value.url);
  for(const u of [app,provider])if(u.protocol!=='https:'||u.pathname!=='/'||u.search||u.hash||u.username||u.password)throw Error('invalid_origin');
  if(app.origin!==currentOrigin||!/^sb_publishable_[A-Za-z0-9_-]+$/.test(value.publishableKey||''))throw Error('invalid_configuration');
- return {appOrigin:app.origin,url:provider.origin,publishableKey:value.publishableKey};
+ return {appOrigin:app.origin,url:provider.origin,publishableKey:value.publishableKey,...(value.deletionEnabled===true?{deletionEnabled:true}:{})};
 }
 export async function completeCallback({auth,href,origin,replace}){
  const url=new URL(href);if(url.origin!==origin)throw Error('invalid_callback');
@@ -33,7 +33,7 @@ export function createAccountBridge({auth,origin,fetcher=fetch,onClear=()=>{}}){
  async function request(path,{method='GET',body,key}={}){
   const target=new URL(path,base);
   const match=target.pathname.match(/^\/api\/(customers|quotes)(?:\/([0-9a-f-]{36}))?(\/followups)?$/i);
-  if(target.origin!==origin||target.username||target.password||target.hash||!(['/api/onboarding','/api/account','/api/dashboard','/api/quote-drafts'].includes(target.pathname)||match)||!['GET','POST','PATCH','DELETE'].includes(method))throw Error('invalid_api_path');
+  if(target.origin!==origin||target.username||target.password||target.hash||!(['/api/onboarding','/api/account','/api/account/deletion','/api/dashboard','/api/quote-drafts'].includes(target.pathname)||match)||!['GET','POST','PATCH','DELETE'].includes(method))throw Error('invalid_api_path');
   if([...target.searchParams.keys()].some(k=>!['limit','cursor'].includes(k)))throw Error('invalid_api_path');
   if(disposed)throw Error('session_changed');
   const stamp=generation;let timer,abort;

@@ -1,0 +1,12 @@
+import {JSDOM} from 'jsdom';import assert from 'node:assert/strict';import {mountDeletion} from '../../src/auth/deletion-view.mjs';
+const dom=new JSDOM('<section id="workspace"></section>'),d=dom.window.document;
+dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false};
+mountDeletion({root:d,api:{}});assert.equal(d.querySelector('button'),null);
+let calls=0,resolve,accepted=0;const view=mountDeletion({root:d,enabled:true,api:{request:()=>{calls++;return new Promise(r=>{resolve=r})}},onAccepted:()=>accepted++});
+const open=d.querySelector('button'),dialog=d.querySelector('dialog'),input=d.querySelector('input'),form=d.querySelector('form'),send=form.querySelector('button'),cancel=form.querySelectorAll('button')[1];
+open.click();assert.equal(send.disabled,true);input.value='wrong';input.dispatchEvent(new dom.window.Event('input'));assert.equal(send.disabled,true);cancel.click();assert.equal(calls,0);
+open.click();input.value='DELETE MY ACCOUNT';input.dispatchEvent(new dom.window.Event('input'));assert.equal(send.disabled,false);
+form.dispatchEvent(new dom.window.Event('submit',{cancelable:true}));form.dispatchEvent(new dom.window.Event('submit',{cancelable:true}));assert.equal(calls,1);assert.equal(cancel.disabled,true);
+resolve({accepted:true});await new Promise(r=>setImmediate(r));assert.equal(accepted,1);assert.equal(dialog.open,false);assert.equal(input.value,'');
+open.click();input.value='DELETE MY ACCOUNT';input.dispatchEvent(new dom.window.Event('input'));form.dispatchEvent(new dom.window.Event('submit',{cancelable:true}));view.clear();resolve({accepted:true});await new Promise(r=>setImmediate(r));assert.equal(accepted,1);
+console.log('PASS deletion UI: disabled feature, exact phrase, cancel, duplicate submit and identity-change stale response. DOM only.');dom.window.close();

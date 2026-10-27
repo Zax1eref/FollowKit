@@ -1,3 +1,68 @@
+// src/server/deletion-http.mjs
+var uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+function deletionHttp({ origin: origin2, authenticate, admission, limiter }) {
+  const reply2 = (status, code) => Response.json(status === 202 ? { accepted: true } : { error: { code } }, { status, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...status === 429 ? { "Retry-After": "60" } : {} } });
+  async function bounded(fn, ms = 1e4) {
+    let t;
+    try {
+      return await Promise.race([Promise.resolve().then(fn), new Promise((_, reject) => {
+        t = setTimeout(() => reject(Error("timeout")), ms);
+      })]);
+    } finally {
+      clearTimeout(t);
+    }
+  }
+  return async (request) => {
+    try {
+      const u = new URL(request.url);
+      if (u.pathname !== "/api/account/deletion" || u.search) return reply2(404, "not_found");
+      if (request.method !== "POST") return reply2(405, "method_not_allowed");
+      if (u.origin !== origin2 || request.headers.get("Origin") !== origin2) return reply2(403, "origin_rejected");
+      if (!/^application\/json(?:\s*;.*)?$/i.test(request.headers.get("Content-Type") || "")) return reply2(415, "json_required");
+      const match = (request.headers.get("Authorization") || "").match(/^Bearer ([^\s]{1,8192})$/);
+      if (!match) return reply2(401, "unauthorized");
+      const user = await bounded(() => authenticate(request));
+      if (!uuid.test(user?.id || "")) return reply2(401, "unauthorized");
+      if ((await bounded(() => limiter.limit({ key: "deletion:" + user.id })))?.success !== true) return reply2(429, "rate_limited");
+      const reader = request.body?.getReader();
+      if (!reader) return reply2(400, "invalid_request");
+      let bytes = 0, text2 = "";
+      const deadline = Date.now() + 1e4;
+      const decoder = new TextDecoder();
+      try {
+        while (true) {
+          const left = deadline - Date.now();
+          if (left <= 0) throw Error("timeout");
+          const { done, value } = await bounded(() => reader.read(), left);
+          if (done) break;
+          bytes += value.byteLength;
+          if (bytes > 1024) {
+            void reader.cancel().catch(() => {
+            });
+            return reply2(413, "request_too_large");
+          }
+          text2 += decoder.decode(value, { stream: true });
+        }
+        text2 += decoder.decode();
+      } finally {
+        reader.releaseLock();
+      }
+      let body;
+      try {
+        body = JSON.parse(text2);
+      } catch {
+        return reply2(400, "invalid_request");
+      }
+      if (!body || Array.isArray(body) || Object.keys(body).length !== 1 || body.confirmation !== "DELETE MY ACCOUNT") return reply2(400, "confirmation_required");
+      const result = await bounded(() => admission.confirm({ accessToken: match[1], body }));
+      if (result?.accepted !== true || !uuid.test(result.jobId || "")) return reply2(503, "deletion_pending");
+      return reply2(202);
+    } catch {
+      return reply2(503, "deletion_pending");
+    }
+  };
+}
+
 // src/server/rate-limit.mjs
 function createRateLimiter({ now = () => Date.now(), windowMs = 6e4, readLimit = 120, writeLimit = 30, maxKeys = 1e4 } = {}) {
   const windows = /* @__PURE__ */ new Map();
@@ -198,12 +263,12 @@ function supabaseAuthenticator({ url, publishableKey, fetcher = fetch, timeoutMs
 }
 
 // src/server/http-repository.mjs
-var uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+var uuid2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var bad = (code = "invalid_fields") => {
   throw new Fault(400, code);
 };
 var id = (value) => {
-  if (typeof value !== "string" || !uuid.test(value)) bad("invalid_id");
+  if (typeof value !== "string" || !uuid2.test(value)) bad("invalid_id");
   return value;
 };
 function exact(value, keys) {
@@ -369,7 +434,7 @@ function createHttpRepository({ url, publishableKey, owner, authorization, fetch
         if (cursor) {
           if (typeof cursor !== "string" || cursor.length > 1024) throw Error();
           const c = JSON.parse(atob(cursor));
-          if (c.owner !== owner || c.table !== table || !uuid.test(c.after)) throw Error();
+          if (c.owner !== owner || c.table !== table || !uuid2.test(c.after)) throw Error();
           after = c.after;
         }
       } catch {
@@ -385,7 +450,7 @@ function createHttpRepository({ url, publishableKey, owner, authorization, fetch
       if (!Number.isSafeInteger(total) || total < data.length || !data.length && total) protocol();
       for (const r of data) {
         owned(r);
-        if (!uuid.test(r.id)) protocol();
+        if (!uuid2.test(r.id)) protocol();
       }
       const items = data.slice(0, limit);
       return { items, next_cursor: total > items.length ? btoa(JSON.stringify({ owner, table, after: items.at(-1).id })) : null };
@@ -467,7 +532,7 @@ function httpRepositoryFactory(config) {
 }
 
 // src/worker/index.mjs
-var uuid2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+var uuid3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var failure = (status, code, headers = {}) => new Response(JSON.stringify({ error: { code } }), { status, headers: { "Content-Type": "application/json; charset=utf-8", ...headers } });
 function secure(response) {
   const headers = new Headers(response.headers);
@@ -489,13 +554,16 @@ function configuration(env) {
   if (!/^sb_publishable_[A-Za-z0-9_-]+$/.test(publishableKey || "")) throw Error("invalid key");
   return { appOrigin, url, publishableKey };
 }
+function deletionEnabled(env) {
+  return env.FOLLOWKIT_DELETION_ENABLED === "true" && typeof env.DELETION_SERVICE?.confirm === "function" && typeof env.DELETION_RATE_LIMIT?.limit === "function";
+}
 function methods(path) {
   if (path === "/api/onboarding") return ["GET", "POST"];
   if (["/api/account", "/api/account/export", "/api/dashboard"].includes(path)) return ["GET"];
   if (["/api/quote-drafts", "/api/billing/checkout"].includes(path)) return ["POST"];
   if (["/api/customers", "/api/quotes"].includes(path)) return ["GET", "POST"];
   const match = path.match(/^\/api\/(customers|quotes)\/([^/]+)(\/followups)?$/);
-  if (!match || !uuid2.test(match[2]) || match[3] && match[1] !== "quotes") return null;
+  if (!match || !uuid3.test(match[2]) || match[3] && match[1] !== "quotes") return null;
   return match[3] ? ["GET", "POST"] : ["GET", "PATCH", "DELETE"];
 }
 function createWorker({ fetcher = (input, init) => fetch(input, init), authTimeoutMs = 5e3 } = {}) {
@@ -513,7 +581,7 @@ function createWorker({ fetcher = (input, init) => fetch(input, init), authTimeo
           return secure(failure(503, "service_not_configured"));
         }
         if (u.origin !== config2.appOrigin || request.headers.has("origin") && request.headers.get("origin") !== config2.appOrigin) return secure(failure(403, "origin_rejected"));
-        if (u.pathname === "/auth/config") return secure(new Response(JSON.stringify({ enabled: true, ...config2 }), { headers: { "Content-Type": "application/json" } }));
+        if (u.pathname === "/auth/config") return secure(new Response(JSON.stringify({ enabled: true, ...config2, ...deletionEnabled(env) ? { deletionEnabled: true } : {} }), { headers: { "Content-Type": "application/json" } }));
         if (!env.ASSETS) return secure(failure(503, "assets_unavailable"));
         const file = ["/auth/", "/auth/callback", "/auth/recovery"].includes(u.pathname) ? "/auth/index.html" : u.pathname;
         const asset = await env.ASSETS.fetch(new Request(new URL(file, config2.appOrigin)));
@@ -521,6 +589,16 @@ function createWorker({ fetcher = (input, init) => fetch(input, init), authTimeo
         const response = secure(asset);
         response.headers.set("Content-Security-Policy", `default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self' ${config2.url}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`);
         return response;
+      }
+      if (u.pathname === "/api/account/deletion") {
+        if (!deletionEnabled(env)) return secure(failure(404, "not_found"));
+        let config2;
+        try {
+          config2 = configuration(env);
+        } catch {
+          return secure(failure(503, "service_not_configured"));
+        }
+        return secure(await deletionHttp({ origin: config2.appOrigin, authenticate: supabaseAuthenticator({ ...config2, fetcher, timeoutMs: authTimeoutMs }), admission: env.DELETION_SERVICE, limiter: env.DELETION_RATE_LIMIT })(request));
       }
       const allowed = methods(u.pathname);
       if (!allowed) return secure(failure(404, "not_found"));
@@ -539,7 +617,7 @@ function createWorker({ fetcher = (input, init) => fetch(input, init), authTimeo
         const provider = supabaseAuthenticator({ ...config, fetcher, timeoutMs: authTimeoutMs });
         api = createApi({ authenticate: async (req) => {
           const user = await provider(req);
-          return user && uuid2.test(user.id) ? user : null;
+          return user && uuid3.test(user.id) ? user : null;
         }, repositoryFor: httpRepositoryFactory({ ...config, fetcher }) });
         cachedConfig = key;
       }
