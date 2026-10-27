@@ -13,3 +13,8 @@ Verification: node tests/postgres/deletion-jobs.mjs uses actual PostgreSQL WASM 
 Integration ordering corrected: the coordinator now separates revokeSessions from removeIdentity, purges app rows before deleting the Auth user, and retains the tombstone/job. The candidate failure-stage enum includes revokeSessions. This migration has never been applied to hosted Supabase; the candidate was updated in place. Actual provider adapters are still absent.
 
 Current Supabase changelog and RLS documentation were reviewed. This change uses ordinary PostgreSQL tables, row locks and invoker functions; no new SDK dependency or managed Auth mutation.
+
+
+## Native concurrency evidence
+
+GitHub Actions run [40451868254](https://github.com/Zax1eref/FollowKit/actions/runs/40451868254) passed all nine native groups three times each on PostgreSQL 17 and 18, with fresh disposable databases. Added groups verify only one concurrent claimer receives the active job, a replacement lease rejects the old purge token without deleting quotes, and an uncommitted purge rolls back before successful cross-connection retry. Other-owner records and retained tombstones remain, and completion remains pending. Existing session-revocation, guard and independent restore drills also passed. This closes the stated native test gate for these cases; live provider adapters, hosted advisors and deployment remain pending. Provider identity/evidence is simulated in CI.

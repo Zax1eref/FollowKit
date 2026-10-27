@@ -11,3 +11,8 @@ Only app_purged_at is recorded; completed_at remains unset. Auth users, deletion
 Verification: node tests/postgres/deletion-purge.mjs, actual PostgreSQL WASM with synthetic owner A/B. Three groups cover missing evidence, active-account rejection, client denial, wrong/expired lease; injected failure after earlier deletes rolling back all changes; all six app tables cleared with repeat-call safety while B remains byte-for-byte equal and Auth/job/tombstone/ledger/global events survive. Provider evidence is simulated; no remote R2/Auth/billing calls are made.
 
 Pending before activation: native multi-connection tests on PostgreSQL 17/18, hosted advisors, trusted adapter/least-privilege role wiring, supported Auth revocation/removal, billing reconciliation, admission/recent authentication, lease renewal, and final completion verification. No real account has been deleted and no user deployment is required for this candidate.
+
+
+## Native concurrency evidence
+
+GitHub Actions run [40451868254](https://github.com/Zax1eref/FollowKit/actions/runs/40451868254) passed all nine native groups three times each on PostgreSQL 17 and 18, with fresh disposable databases. Added groups verify only one concurrent claimer receives the active job, a replacement lease rejects the old purge token without deleting quotes, and an uncommitted purge rolls back before successful cross-connection retry. Other-owner records and retained tombstones remain, and completion remains pending. Existing session-revocation, guard and independent restore drills also passed. This closes the stated native test gate for these cases; live provider adapters, hosted advisors and deployment remain pending. Provider identity/evidence is simulated in CI.
