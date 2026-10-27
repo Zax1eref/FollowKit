@@ -58,3 +58,8 @@ jobs:
             echo "Native concurrency iteration ${iteration}/3"
             npm --prefix tests/native test
           done
+      - name: Drill isolated dump and restore with retained deletion checkpoint
+        env:
+          FOLLOWKIT_NATIVE_TEST_URL: postgresql://postgres:followkit-disposable-ci-only@127.0.0.1:5432/postgres
+          FOLLOWKIT_RESTORE_CONTAINER: ${{ job.services.postgres.id }}
+        run: npm --prefix tests/native run test:restore
