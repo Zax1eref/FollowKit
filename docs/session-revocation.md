@@ -38,3 +38,10 @@ Provider guidance: [session revocation checks](https://supabase.com/docs/guides/
 ## Native CI result
 
 [Run 40390547716](https://github.com/Zax1eref/FollowKit/actions/runs/40390547716) completed successfully on PostgreSQL 17 and 18. Both jobs passed the new session suite and all six native groups in three fresh-database iterations, including committed session removal observed from another connection. These use simulated provider identities. The post-migration live HTTP logout retest remains pending.
+
+
+## Live logout retest — user-reported result, 27 October 2026
+
+At 07:29:23 Asia/Bangkok, the supplied report showed successful reads before logout (200 through Worker and direct Data API). At the first post-logout sample, Worker returned 401 and direct Data API returned 403. The sample completed within the reported one-second bound. `measurementComplete`, `logoutAccepted`, `immediateRevocation`, and `rejectionObserved` were true; `expiryCheckPerformed` was false. This confirms denial for the two tested endpoints at the first sampled point, not a zero-latency guarantee across all operations.
+
+Post-migration normal-workflow regression still requires fresh sessions for both synthetic accounts. Run the existing read-only, customer-write, then quote/followup-write runners in order, stopping on any nonzero exit code. Expected checks remain 36, 32 and 58; both mutation runners must report cleanupComplete true. Do not run the logout runner in between, because it invalidates the session used by subsequent checks.
