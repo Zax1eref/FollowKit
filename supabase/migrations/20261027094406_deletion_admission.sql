@@ -7,7 +7,7 @@ BEGIN
  OR recent_at<clock_timestamp()-interval '5 minutes'
  THEN RAISE EXCEPTION 'recent_auth_required' USING ERRCODE='42501'; END IF;
  PERFORM 1 FROM auth.sessions WHERE id=session AND user_id=subject
- AND (not_after IS NULL OR not_after>clock_timestamp()) FOR SHARE;
+ AND (not_after IS NULL OR not_after>clock_timestamp());
  IF NOT FOUND THEN RAISE EXCEPTION 'unauthorized' USING ERRCODE='42501'; END IF;
  PERFORM 1 FROM auth.users WHERE id=subject AND email_confirmed_at IS NOT NULL AND is_anonymous IS FALSE;
  IF NOT FOUND THEN RAISE EXCEPTION 'unauthorized' USING ERRCODE='42501'; END IF;
@@ -19,7 +19,7 @@ BEGIN
  IF account_state<>'active' OR EXISTS(SELECT 1 FROM followkit_private.account_tombstones WHERE subject_id=subject)
  THEN RAISE EXCEPTION 'account_unavailable' USING ERRCODE='42501'; END IF;
  -- Recheck freshness after lock waits. All changes commit or roll back together.
- IF recent_at<clock_timestamp()-interval '5 minutes' THEN RAISE EXCEPTION 'recent_auth_required' USING ERRCODE='42501'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM auth.sessions WHERE id=session AND user_id=subject AND (not_after IS NULL OR not_after>clock_timestamp())) OR recent_at<clock_timestamp()-interval '5 minutes' THEN RAISE EXCEPTION 'recent_auth_required' USING ERRCODE='42501'; END IF;
  INSERT INTO followkit_private.deletion_jobs(subject_id,confirmed_at) VALUES(subject,clock_timestamp()) RETURNING id INTO result;
  UPDATE public.fk_accounts SET state='deleting' WHERE id=subject;
  RETURN result;

@@ -3,7 +3,7 @@ const db=new PGlite(),q=(s,p=[])=>db.query(s,p),A='11111111-1111-4111-8111-11111
 try{
  await db.exec(await readFile(new URL('bootstrap.sql',import.meta.url),'utf8'));
  for(const f of ['001-foundation.sql','002-mutations.sql','003-network-contract.sql','004-account-provisioning.sql'])await db.exec(await readFile(new URL('../../database/postgres/'+f,import.meta.url),'utf8'));
- const dir=new URL('../../supabase/migrations/',import.meta.url);for(const f of (await readdir(dir)).filter(f=>/deletion_job_queue|deletion_app_purge|deletion_completion|deletion_free_billing|deletion_admission/.test(f)).sort())await db.exec(await readFile(new URL(f,dir),'utf8'));
+ const dir=new URL('../../supabase/migrations/',import.meta.url);for(const f of (await readdir(dir)).filter(f=>/deletion_job_queue|deletion_app_purge|deletion_completion|deletion_free_billing|deletion_admission|deletion_executor_role/.test(f)).sort())await db.exec(await readFile(new URL(f,dir),'utf8'));
  for(const owner of [A,B]){await q('INSERT INTO auth.users(id,email_confirmed_at) VALUES($1,now())',[owner]);await q('INSERT INTO public.fk_accounts(id) VALUES($1)',[owner]);await q('INSERT INTO public.fk_subscriptions(account_id) VALUES($1)',[owner]);await q("INSERT INTO public.fk_customers(account_id,name) VALUES($1,'fixture')",[owner]);}
  await q('INSERT INTO auth.sessions(id,user_id) VALUES($1,$2)',[S,A]);
  const user={id:A,email_confirmed_at:'2026-10-27',is_anonymous:false};let archiveFails=true,providerFails=true,logoutCalls=0;const archived=new Set();
@@ -12,7 +12,17 @@ try{
   getUserById:async id=>{const r=await q('SELECT id FROM auth.users WHERE id=$1',[id]);return r.rows.length?{data:{user:{id}}}:{data:{user:null},error:{status:404,code:'user_not_found'}}},
   deleteUser:async id=>{await q('DELETE FROM auth.users WHERE id=$1',[id]);return {error:null}}
  }};
- const service=deletionService({database:db,auth,issuer,billingMode:'no_provider_ever_enabled',archive:{retain:async owner=>{if(archiveFails)throw Error('outage');archived.add(owner);return {retained:true}}}});
+ await db.exec('ALTER TABLE auth.users ADD COLUMN email text; ALTER TABLE auth.users ENABLE ROW LEVEL SECURITY; ALTER TABLE auth.sessions ENABLE ROW LEVEL SECURITY');
+ const attrs=(await q("SELECT rolcanlogin,rolsuper,rolbypassrls,rolcreaterole FROM pg_roles WHERE rolname='followkit_deletion_executor'")).rows[0];
+ assert.deepEqual(attrs,{rolcanlogin:false,rolsuper:false,rolbypassrls:false,rolcreaterole:false});
+ assert.equal((await q("SELECT pg_has_role('authenticated','followkit_deletion_executor','MEMBER') m")).rows[0].m,false);
+ const executor={query:async(sql,args)=>{await db.exec('SET ROLE followkit_deletion_executor');try{return await q(sql,args)}finally{await db.exec('RESET ROLE')}}};
+ await db.exec('SET ROLE followkit_deletion_executor');
+ for(const sql of ['DELETE FROM auth.users','DELETE FROM auth.sessions','SELECT email FROM auth.users','DELETE FROM followkit_private.account_tombstones','DELETE FROM followkit_private.deletion_jobs','SELECT * FROM followkit_private.payment_events',"UPDATE public.fk_accounts SET plan='paid'","UPDATE public.fk_subscriptions SET status='active'"]){await assert.rejects(()=>q(sql),e=>e.code==='42501');}
+ assert.equal((await q('DELETE FROM public.fk_customers RETURNING account_id')).rows.length,0);
+ await db.exec('RESET ROLE');
+ console.log('PASS non-bypass executor denies Auth writes, retained-authority deletion, plan/billing edits and unready purge');
+ const service=deletionService({database:executor,auth,issuer,billingMode:'no_provider_ever_enabled',archive:{retain:async owner=>{if(archiveFails)throw Error('outage');archived.add(owner);return {retained:true}}}});
  const input={accessToken:'fixture-token',body:{confirmation:'DELETE MY ACCOUNT'}};
  const accepted=await service.confirm(input);assert.equal(accepted.accepted,true);assert.equal(logoutCalls,0);
  let job=(await q('SELECT * FROM followkit_private.deletion_jobs')).rows[0];assert.equal(job.last_failure,'archive');assert.equal(job.archive_verified_at,null);assert.equal(job.lease_token,null);
