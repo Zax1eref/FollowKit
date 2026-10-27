@@ -2,6 +2,7 @@ import {PGlite} from '@electric-sql/pglite';
 import {readFile,readdir} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import {deletionReadiness} from '../../src/server/deletion-readiness.mjs';
+import {deletionSessionInspector} from '../../src/server/deletion-sessions.mjs';
 import {deletionAuth} from '../../src/server/deletion-auth.mjs';
 const db=new PGlite(),q=(s,p=[])=>db.query(s,p);
 const A='11111111-1111-4111-8111-111111111111',B='22222222-2222-4222-8222-222222222222';
@@ -32,6 +33,15 @@ try{
  for(const column of ['archive_verified_at','sessions_revoked_at','billing_settled_at']){await q(`UPDATE followkit_private.deletion_jobs SET ${column}=now() WHERE id=$1`,[id]);await assert.rejects(purge,e=>e.code==='42501');}
  assert.deepEqual(await snapshot(A),beforeA);
  await q("UPDATE public.fk_accounts SET state='deleting' WHERE id=$1",[A]);
+ const inspect=deletionSessionInspector({database:db,leaseToken:token});
+ await q('INSERT INTO auth.sessions(id,user_id) VALUES(gen_random_uuid(),$1)',[A]);
+ assert.deepEqual(await inspect(context),{ready:true,activeSessions:1});
+ assert.equal((await inspect({jobId:id,owner:B})).ready,false);
+ // Simulate provider revocation in the TEST-ONLY Auth table.
+ await q('DELETE FROM auth.sessions WHERE user_id=$1',[A]);
+ assert.deepEqual(await inspect(context),{ready:true,activeSessions:0});
+ console.log('PASS read-only session inspector verifies job/owner and observes provider session count');
+
  for(const role of ['anon','authenticated']){await db.exec('SET ROLE '+role);await assert.rejects(purge,e=>e.code==='42501');await db.exec('RESET ROLE');}
  await assert.rejects(()=>q('SELECT followkit_private.purge_deletion_app($1,gen_random_uuid())',[id]),e=>e.code==='42501');
  await q("UPDATE followkit_private.deletion_jobs SET lease_until=now()-interval '1 second' WHERE id=$1",[id]);
