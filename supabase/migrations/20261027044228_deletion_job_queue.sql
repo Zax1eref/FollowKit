@@ -8,7 +8,7 @@ CREATE TABLE followkit_private.deletion_jobs (
  attempts integer NOT NULL DEFAULT 0 CHECK(attempts>=0),
  lease_token uuid,
  lease_until timestamptz,
- last_failure text CHECK(last_failure IN ('archive','blockAccess','settleBilling','removeIdentity','purgeData','complete','load_confirmed')),
+ last_failure text CHECK(last_failure IN ('archive','blockAccess','revokeSessions','settleBilling','removeIdentity','purgeData','complete','load_confirmed')),
  completed_at timestamptz,
  CHECK ((lease_token IS NULL) = (lease_until IS NULL)),
  CHECK (completed_at IS NULL OR lease_token IS NULL)
@@ -47,7 +47,7 @@ REVOKE ALL ON FUNCTION followkit_private.claim_deletion_job() FROM PUBLIC,anon,a
 CREATE FUNCTION followkit_private.retry_deletion_job(job uuid,token uuid,failure text) RETURNS boolean
 LANGUAGE plpgsql SECURITY INVOKER SET search_path='' AS $$
 BEGIN
- IF failure IS NULL OR failure NOT IN ('archive','blockAccess','settleBilling','removeIdentity','purgeData','complete','load_confirmed') THEN
+ IF failure IS NULL OR failure NOT IN ('archive','blockAccess','revokeSessions','settleBilling','removeIdentity','purgeData','complete','load_confirmed') THEN
  RAISE EXCEPTION 'invalid_failure_stage' USING ERRCODE='22023'; END IF;
  UPDATE followkit_private.deletion_jobs SET lease_token=NULL,lease_until=NULL,
  next_attempt_at=statement_timestamp()+interval '1 minute',last_failure=failure

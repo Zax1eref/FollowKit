@@ -5,7 +5,7 @@
 // may mark the job done, after independently verifying all completion conditions.
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export function deletionWorkflow({jobs,archive,effects}) {
- for(const [object,methods] of [[jobs,['loadConfirmed','complete']],[archive,['retain']],[effects,['blockAccess','settleBilling','removeIdentity','purgeData']]])
+ for(const [object,methods] of [[jobs,['loadConfirmed','complete']],[archive,['retain']],[effects,['blockAccess','revokeSessions','settleBilling','purgeData','removeIdentity']]])
   for(const method of methods)if(typeof object?.[method]!=='function')throw Error('invalid_deletion_workflow_configuration');
  return {async run(jobId){
   if(typeof jobId!=='string'||!uuid.test(jobId))throw Error('invalid_deletion_job');
@@ -17,7 +17,7 @@ export function deletionWorkflow({jobs,archive,effects}) {
    // Recheck archive even on retries: never trust a stale cached acknowledgement.
    stage='archive';
    if((await archive.retain(context.owner))?.retained!==true)throw Error('unretained');
-   for(const method of ['blockAccess','settleBilling','removeIdentity','purgeData']) {
+   for(const method of ['blockAccess','revokeSessions','settleBilling','purgeData','removeIdentity']) {
     stage=method;
     if((await effects[method](context))?.done!==true)throw Error('unfinished');
    }
