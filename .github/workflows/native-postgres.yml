@@ -8,6 +8,8 @@ name: Native PostgreSQL concurrency gate
       - database/postgres/**
       - supabase/migrations/**
       - tests/postgres/session-revocation.mjs
+      - tests/postgres/deletion-*.mjs
+      - src/server/deletion-*.mjs
       - tests/native/**
       - tests/postgres/bootstrap.sql
 permissions:
@@ -45,6 +47,12 @@ jobs:
       - run: npm ci --prefix tests/postgres
       - name: Check session revocation in PostgreSQL WASM
         run: node tests/postgres/session-revocation.mjs
+      - name: Check composed deletion and database gates with synthetic providers
+        run: |
+          node tests/postgres/deletion-admission.mjs
+          node tests/postgres/deletion-billing.mjs
+          node tests/postgres/deletion-purge.mjs
+          node tests/postgres/deletion-service.mjs
       - run: npm ci --prefix tests/native
       - name: Check configuration guards
         run: npm --prefix tests/native run test:guards
