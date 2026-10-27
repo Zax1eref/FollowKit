@@ -34,3 +34,10 @@ The fixture models provider sessions with `tests/postgres/bootstrap.sql`. Its di
 Passing this test establishes the reconciliation mechanics in a disposable PostgreSQL environment. It does not establish production disaster-recovery readiness or authorize restoring the live project.
 
 References: [PostgreSQL pg_dump](https://www.postgresql.org/docs/current/app-pgdump.html), [pg_restore](https://www.postgresql.org/docs/current/app-pgrestore.html), [Supabase backup/restore guidance](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore).
+
+
+## Completed CI evidence
+
+[Run 40428170207](https://github.com/Zax1eref/FollowKit/actions/runs/40428170207) passed on both PostgreSQL 17.11 and 18.6. Each engine's real custom-format pg_dump/pg_restore drill passed all seven groups. The same jobs also passed the seven session-revocation groups, six configuration/manifest guards and three repetitions of the six native concurrency/session groups. The complete Node regression suite passed 140/140 locally. Generated databases, roles and temporary synthetic archives were cleaned up.
+
+This closes the isolated native restore-mechanics check. The production prerequisites above remain open, especially a durable independent deletion authority, managed Auth reconciliation, actual hosted backups and a hosted restore/cutover rehearsal. No changes were made to the live Supabase project in this step.
