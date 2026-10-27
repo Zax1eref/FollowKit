@@ -1,3 +1,4 @@
+import {deletionStatusSql} from '../../src/server/deletion-status.mjs';
 import {PGlite} from '@electric-sql/pglite';import {readFile,readdir} from 'node:fs/promises';import assert from 'node:assert/strict';
 const db=new PGlite(),q=(s,p=[])=>db.query(s,p),A='11111111-1111-4111-8111-111111111111',B='22222222-2222-4222-8222-222222222222',S='33333333-3333-4333-8333-333333333333';
 try{
@@ -17,6 +18,12 @@ try{
  assert.equal((await q('SELECT * FROM followkit_private.deletion_jobs')).rows.length,1);
  assert.equal((await q('SELECT state FROM public.fk_accounts WHERE id=$1',[A])).rows[0].state,'deleting');
  assert.equal((await q('SELECT state FROM public.fk_accounts WHERE id=$1',[B])).rows[0].state,'active');
- await q('DELETE FROM auth.sessions WHERE id=$1',[S]);await assert.rejects(admit,e=>e.code==='42501');
+ assert.deepEqual((await q(deletionStatusSql,[A,S])).rows[0],{authorized:true,state:'pending'});
+ await q('INSERT INTO auth.sessions(id,user_id) VALUES($1,$1)',[B]);
+ assert.deepEqual((await q(deletionStatusSql,[B,B])).rows[0],{authorized:true,state:null});
+ assert.equal((await q(deletionStatusSql,[A,B])).rows[0].authorized,false);
+ await q('DELETE FROM auth.sessions WHERE id=$1',[S]);
+ assert.equal((await q(deletionStatusSql,[A,S])).rows[0].authorized,false);
+await assert.rejects(admit,e=>e.code==='42501');
  console.log('PASS atomic job/block/tombstone rollback, repeat deduplication and revoked session denial');
 }finally{await db.close();}

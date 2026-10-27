@@ -8,7 +8,7 @@ const failure=(status,code,headers={})=>new Response(JSON.stringify({error:{code
 function secure(response){const headers=new Headers(response.headers);headers.set('Cache-Control','no-store');headers.set('X-Content-Type-Options','nosniff');headers.set('Referrer-Policy','no-referrer');headers.set('Content-Security-Policy',"default-src 'none'; frame-ancestors 'none'");headers.delete('Access-Control-Allow-Origin');return new Response(response.body,{status:response.status,headers})}
 function origin(value){const u=new URL(value);if(u.protocol!=='https:'||u.username||u.password||u.pathname!=='/'||u.search||u.hash)throw Error('invalid origin');return u.origin}
 function configuration(env){if(env.FOLLOWKIT_API_ENABLED!=='true')throw Error('disabled');const appOrigin=origin(env.APP_ORIGIN),url=origin(env.SUPABASE_URL),publishableKey=env.SUPABASE_PUBLISHABLE_KEY;if(!/^sb_publishable_[A-Za-z0-9_-]+$/.test(publishableKey||''))throw Error('invalid key');return {appOrigin,url,publishableKey}}
-function deletionEnabled(env){return env.FOLLOWKIT_DELETION_ENABLED==='true'&&typeof env.DELETION_SERVICE?.confirm==='function'&&typeof env.DELETION_RATE_LIMIT?.limit==='function'}
+function deletionEnabled(env){return env.FOLLOWKIT_DELETION_ENABLED==='true'&&typeof env.DELETION_SERVICE?.confirm==='function'&&typeof env.DELETION_SERVICE?.status==='function'&&typeof env.DELETION_RATE_LIMIT?.limit==='function'}
 function methods(path){
  if(path==='/api/onboarding')return ['GET','POST'];
  if(['/api/account','/api/account/export','/api/dashboard'].includes(path))return ['GET'];
@@ -36,7 +36,7 @@ export function createWorker({fetcher=(input,init)=>fetch(input,init),authTimeou
    response.headers.set('Content-Security-Policy',`default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self' ${config.url}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`);
    return response;
   }
-  if(u.pathname==='/api/account/deletion'){
+  if(['/api/account/deletion','/api/account/deletion/status'].includes(u.pathname)){
    if(!deletionEnabled(env))return secure(failure(404,'not_found'));
    let config;try{config=configuration(env)}catch{return secure(failure(503,'service_not_configured'))}
    return secure(await deletionHttp({origin:config.appOrigin,authenticate:supabaseAuthenticator({...config,fetcher,timeoutMs:authTimeoutMs}),admission:env.DELETION_SERVICE,limiter:env.DELETION_RATE_LIMIT})(request));

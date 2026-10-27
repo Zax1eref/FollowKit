@@ -33,7 +33,7 @@ export function createAccountBridge({auth,origin,fetcher=fetch,onClear=()=>{}}){
  async function request(path,{method='GET',body,key}={}){
   const target=new URL(path,base);
   const match=target.pathname.match(/^\/api\/(customers|quotes)(?:\/([0-9a-f-]{36}))?(\/followups)?$/i);
-  if(target.origin!==origin||target.username||target.password||target.hash||!(['/api/onboarding','/api/account','/api/account/deletion','/api/dashboard','/api/quote-drafts'].includes(target.pathname)||match)||!['GET','POST','PATCH','DELETE'].includes(method))throw Error('invalid_api_path');
+  if(target.origin!==origin||target.username||target.password||target.hash||!(['/api/onboarding','/api/account','/api/account/deletion','/api/account/deletion/status','/api/dashboard','/api/quote-drafts'].includes(target.pathname)||match)||!['GET','POST','PATCH','DELETE'].includes(method))throw Error('invalid_api_path');
   if([...target.searchParams.keys()].some(k=>!['limit','cursor'].includes(k)))throw Error('invalid_api_path');
   if(disposed)throw Error('session_changed');
   const stamp=generation;let timer,abort;

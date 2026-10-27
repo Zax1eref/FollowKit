@@ -14,7 +14,7 @@ function sync(state){
   if(current!==sequence||controller.getState().view!=='signed_in')return;
   document.getElementById('onboarding').hidden=result.status!=='setup_required';
   if(result.status==='setup_required'){accountStatus.textContent='ยืนยันอีเมลแล้ว กรุณายืนยันสร้างพื้นที่ทำงาน';return}
-  if(result.status!=='ready'){accountStatus.textContent='บัญชีนี้ถูกระงับการเปิดใช้งาน กรุณาติดต่อผู้ดูแล';workspace.clear();return}
+  if(result.status!=='ready'){accountStatus.textContent='บัญชีนี้ถูกระงับการเปิดใช้งาน กรุณาติดต่อผู้ดูแล';workspace.clear();deletion?.showStatus();return}
   const account=await bridge.load();if(current===sequence&&controller.getState().view==='signed_in'){accountStatus.textContent='เชื่อมบัญชีแล้ว · แผน '+account.plan;workspace.start()}
  }).catch(()=>{if(current===sequence&&controller.getState().view==='signed_in')accountStatus.textContent='ยังตรวจสอบบัญชีไม่ได้ กรุณาลองเข้าสู่ระบบใหม่'}).finally(()=>{if(current===sequence)reading=false});
 }
@@ -25,7 +25,7 @@ try{
  client=createClient(config.url,config.publishableKey,{global:{fetch:(input,init)=>{const target=new URL(typeof input==='string'?input:input.url||String(input));if(target.origin!==config.url||!target.pathname.startsWith('/auth/v1/'))throw Error('provider_origin_rejected');return fetch(input,{...init,credentials:'omit',redirect:'error'})}},auth:{flowType:'pkce',detectSessionInUrl:false,persistSession:true,autoRefreshToken:true,storage:localStorage,storageKey:'followkit-'+new URL(config.url).hostname}});
  bridge=createAccountBridge({auth:client.auth,origin:config.appOrigin,onClear:clear});
  workspace=mountWorkspace({api:bridge});
- deletion=mountDeletion({api:bridge,enabled:config.deletionEnabled===true,onAccepted:()=>{workspace.clear();accountStatus.textContent='รับคำขอลบบัญชีแล้ว บัญชีถูกปิดการเข้าถึงระหว่างดำเนินการ ยังไม่ใช่การยืนยันว่าลบเสร็จ';}});
+ deletion=mountDeletion({api:bridge,enabled:config.deletionEnabled===true,onAccepted:()=>{workspace.clear();deletion.showStatus();accountStatus.textContent='รับคำขอลบบัญชีแล้ว บัญชีถูกปิดการเข้าถึงระหว่างดำเนินการ ยังไม่ใช่การยืนยันว่าลบเสร็จ';}});
  controller=mountAuth({auth:client.auth,origin:config.appOrigin,isLocked:()=>!ready,onState:()=>queueMicrotask(()=>{if(controller)sync(controller.getState())})});
  // Disable interactions until callback exchange has completed. SDK callbacks are synchronous-only.
  for(const el of document.querySelectorAll('button,input'))el.disabled=true;

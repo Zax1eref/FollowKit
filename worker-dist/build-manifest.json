@@ -1,6 +1,6 @@
 {
   "entry": "src/worker/index.mjs",
-  "bytes": 30405,
+  "bytes": 31067,
   "inputs": [
     "src/server/deletion-http.mjs",
     "src/server/rate-limit.mjs",

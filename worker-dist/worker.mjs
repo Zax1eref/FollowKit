@@ -15,7 +15,8 @@ function deletionHttp({ origin: origin2, authenticate, admission, limiter }) {
   return async (request) => {
     try {
       const u = new URL(request.url);
-      if (u.pathname !== "/api/account/deletion" || u.search) return reply2(404, "not_found");
+      const statusOnly = u.pathname === "/api/account/deletion/status";
+      if (u.pathname !== "/api/account/deletion" && !statusOnly || u.search) return reply2(404, "not_found");
       if (request.method !== "POST") return reply2(405, "method_not_allowed");
       if (u.origin !== origin2 || request.headers.get("Origin") !== origin2) return reply2(403, "origin_rejected");
       if (!/^application\/json(?:\s*;.*)?$/i.test(request.headers.get("Content-Type") || "")) return reply2(415, "json_required");
@@ -52,6 +53,12 @@ function deletionHttp({ origin: origin2, authenticate, admission, limiter }) {
         body = JSON.parse(text2);
       } catch {
         return reply2(400, "invalid_request");
+      }
+      if (statusOnly) {
+        if (!body || Array.isArray(body) || Object.keys(body).length) return reply2(400, "invalid_request");
+        const result2 = await bounded(() => admission.status({ accessToken: match[1] }));
+        if (!["none", "pending", "complete"].includes(result2?.state)) return reply2(503, "deletion_pending");
+        return Response.json({ state: result2.state }, { headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
       }
       if (!body || Array.isArray(body) || Object.keys(body).length !== 1 || body.confirmation !== "DELETE MY ACCOUNT") return reply2(400, "confirmation_required");
       const result = await bounded(() => admission.confirm({ accessToken: match[1], body }));
@@ -555,7 +562,7 @@ function configuration(env) {
   return { appOrigin, url, publishableKey };
 }
 function deletionEnabled(env) {
-  return env.FOLLOWKIT_DELETION_ENABLED === "true" && typeof env.DELETION_SERVICE?.confirm === "function" && typeof env.DELETION_RATE_LIMIT?.limit === "function";
+  return env.FOLLOWKIT_DELETION_ENABLED === "true" && typeof env.DELETION_SERVICE?.confirm === "function" && typeof env.DELETION_SERVICE?.status === "function" && typeof env.DELETION_RATE_LIMIT?.limit === "function";
 }
 function methods(path) {
   if (path === "/api/onboarding") return ["GET", "POST"];
@@ -590,7 +597,7 @@ function createWorker({ fetcher = (input, init) => fetch(input, init), authTimeo
         response.headers.set("Content-Security-Policy", `default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self' ${config2.url}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`);
         return response;
       }
-      if (u.pathname === "/api/account/deletion") {
+      if (["/api/account/deletion", "/api/account/deletion/status"].includes(u.pathname)) {
         if (!deletionEnabled(env)) return secure(failure(404, "not_found"));
         let config2;
         try {

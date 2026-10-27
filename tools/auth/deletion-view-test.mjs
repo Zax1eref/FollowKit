@@ -9,4 +9,6 @@ open.click();input.value='DELETE MY ACCOUNT';input.dispatchEvent(new dom.window.
 form.dispatchEvent(new dom.window.Event('submit',{cancelable:true}));form.dispatchEvent(new dom.window.Event('submit',{cancelable:true}));assert.equal(calls,1);assert.equal(cancel.disabled,true);
 resolve({accepted:true});await new Promise(r=>setImmediate(r));assert.equal(accepted,1);assert.equal(dialog.open,false);assert.equal(input.value,'');
 open.click();input.value='DELETE MY ACCOUNT';input.dispatchEvent(new dom.window.Event('input'));form.dispatchEvent(new dom.window.Event('submit',{cancelable:true}));view.clear();resolve({accepted:true});await new Promise(r=>setImmediate(r));assert.equal(accepted,1);
+view.showStatus();const check=[...d.querySelectorAll('button')].find(b=>b.textContent==='ตรวจสถานะคำขอลบ');check.click();resolve({state:'pending'});await new Promise(r=>setImmediate(r));assert.match(d.body.textContent,/ยังไม่ยืนยันว่าลบเสร็จ/);
+check.click();view.clear();resolve({state:'complete'});await new Promise(r=>setImmediate(r));assert.ok(!d.body.textContent.includes('ระบบบันทึกว่าดำเนินการลบเสร็จแล้ว'));
 console.log('PASS deletion UI: disabled feature, exact phrase, cancel, duplicate submit and identity-change stale response. DOM only.');dom.window.close();

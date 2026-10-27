@@ -6,9 +6,15 @@ test('cross-site/missing origin cookies-only and non-JSON cannot admit',async()=
 test('oversized invalid extra-field and rate-limited requests cannot admit',async()=>{for(const body of ['x'.repeat(1025),'bad','{"confirmation":"DELETE MY ACCOUNT","owner":"other"}']){const f=setup();assert.ok((await f.run({body})).status>=400);assert.equal(f.calls.length,0)}const f=setup();f.deps.limiter.limit=async()=>({success:false});assert.equal((await f.run()).status,429);assert.equal(f.calls.length,0)});
 test('ambiguous downstream results are not successful and default worker route remains disabled',async()=>{const f=setup();f.deps.admission.confirm=async()=>{throw Error('private-secret')};const r=await f.run();assert.equal(r.status,503);assert.ok(!(await r.text()).includes('private-secret'));assert.equal((await createWorker().fetch(new Request(origin+'/api/account/deletion',{method:'POST'}),{})).status,404)});
 test('Worker exposes deletion only with explicit flag plus both bindings',async()=>{
- const env={FOLLOWKIT_API_ENABLED:'true',APP_ORIGIN:origin,SUPABASE_URL:'https://fixture.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_fixture',FOLLOWKIT_DELETION_ENABLED:'true',DELETION_SERVICE:{confirm:async()=>({accepted:true,jobId:id})},DELETION_RATE_LIMIT:{limit:async()=>({success:true})}};
+ const env={FOLLOWKIT_API_ENABLED:'true',APP_ORIGIN:origin,SUPABASE_URL:'https://fixture.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_fixture',FOLLOWKIT_DELETION_ENABLED:'true',DELETION_SERVICE:{status:async()=>({state:'pending'}),confirm:async()=>({accepted:true,jobId:id})},DELETION_RATE_LIMIT:{limit:async()=>({success:true})}};
  const w=createWorker({fetcher:async()=>Response.json({id,email_confirmed_at:'2026-10-27',is_anonymous:false})});
  const req=()=>new Request(origin+'/api/account/deletion',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json',Authorization:'Bearer fixture'},body:'{"confirmation":"DELETE MY ACCOUNT"}'});
  assert.equal((await w.fetch(req(),{...env,DELETION_RATE_LIMIT:undefined})).status,404);
  assert.equal((await w.fetch(req(),env)).status,202);
+});
+test('status boundary accepts only ownerless empty body and strips internal fields',async()=>{
+ const f=setup();f.deps.admission.status=async arg=>{assert.deepEqual(arg,{accessToken:'fixture'});return {state:'pending',secret:'internal'}};
+ const req=body=>new Request(origin+'/api/account/deletion/status',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json',Authorization:'Bearer fixture'},body:JSON.stringify(body)});
+ const r=await deletionHttp(f.deps)(req({}));assert.equal(r.status,200);assert.deepEqual(await r.json(),{state:'pending'});
+ assert.equal((await deletionHttp(f.deps)(req({owner:id}))).status,400);
 });
