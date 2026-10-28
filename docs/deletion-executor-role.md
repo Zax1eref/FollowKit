@@ -1,4 +1,7 @@
-# Restricted deletion database role — 27 October 2026
+# Restricted deletion database role
+
+**Current status — 28 October 2026:** the executor role and all six infrastructure migrations are installed. Hosted role migration version: `20261028154435`. No login credentials, runtime connection or public deletion enablement have been provisioned. Zero deletion jobs exist. The sections below preserve the design and installation history; the latest verification at the end supersedes earlier candidate/pending descriptions.
+
 
 Candidate migration ONLY. The ownership-only blocker reported on 27 October was incorrect: Supabase's supautils can authorize policy DDL without table ownership. Read-only inspection on 28 October confirmed the live supautils.policy_grants entry for postgres includes both auth.users and auth.sessions. These tables remain owned by supabase_auth_admin with RLS enabled. No production role, policy, grant, password or user-data change has been made. Actual installation and acceptance testing are still pending.
 
@@ -49,3 +52,13 @@ Post-install verification: deletion_jobs has zero rows and RLS enabled; anon and
 Security advisors after installation show one expected new informational RLS-without-policy finding for the private deletion_jobs table. The ten existing authenticated SECURITY DEFINER RPC warnings and disabled leaked-password protection warning remain unchanged; this checkpoint does not claim a clean overall security audit. References: https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy and https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection .
 
 Corrected migration/tests CI passed: https://github.com/Zax1eref/FollowKit/actions/runs/40718063320 .
+
+## Executor role installed — 28 October 2026
+
+After the explicit role-permission question and the user's instruction to perform the next step, the same migration was submitted through normal approval and succeeded. Hosted version 20261028154435 corresponds to source 20261027100318_deletion_executor_role.sql. The previous rejection is resolved for this action; no alternative channel or privilege workaround was used.
+
+Live catalog verification confirms all six role attributes are false: login, superuser, create database, create role, replication and bypass RLS. anon/authenticated/authenticator are not members. Both Auth policies target only followkit_deletion_executor for SELECT. The executor has no Auth DELETE/UPDATE, session DELETE, private email SELECT, job/tombstone DELETE, account-plan UPDATE or payment-events SELECT. The six internal workflow functions are executable by the executor and unavailable to anon/authenticated. There are zero deletion jobs.
+
+An attempted read-only SET LOCAL ROLE smoke check was rejected with SQLSTATE 42501: the connected postgres role cannot switch to followkit_deletion_executor. No membership was added to overcome this. Consequently hosted runtime execution is NOT verified; catalog checks plus prior restricted-role fixture tests are the evidence so far. Provision the dedicated runtime identity separately and test through that identity before enabling deletion. Do not use the administrator credential in the Worker.
+
+Post-install security advisors: two informational private-table RLS-without-policy notices remain (deletion_ledger/payment_events). The ten existing authenticated SECURITY DEFINER RPC warnings and the disabled leaked-password protection warning remain unchanged. There are no newly reported warning categories from this role migration. See the remediation links in the previous checkpoint. No deletion request, app-data purge, Auth deletion or public enablement was performed.
