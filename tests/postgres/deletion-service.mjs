@@ -5,10 +5,10 @@ try{
  for(const f of ['001-foundation.sql','002-mutations.sql','003-network-contract.sql','004-account-provisioning.sql'])await db.exec(await readFile(new URL('../../database/postgres/'+f,import.meta.url),'utf8'));
  const candidate=await readFile(new URL('../../supabase/migrations/20261027100318_deletion_executor_role.sql',import.meta.url),'utf8');
  await db.exec('CREATE ROLE fixture_installer NOLOGIN NOSUPERUSER NOBYPASSRLS; SET ROLE fixture_installer');
- await assert.rejects(()=>db.exec(candidate),e=>e.code==='42501'&&e.message.includes('deletion_executor_auth_policy_owner_required'));
+ await assert.rejects(()=>db.exec(candidate),e=>e.code==='42501');
  await db.exec('ROLLBACK; RESET ROLE');
  assert.equal((await q("SELECT 1 FROM pg_roles WHERE rolname='followkit_deletion_executor'")).rows.length,0);
- console.log('PASS installer without managed Auth ownership fails before executor creation');
+ console.log('PASS unauthorized installer fails and transaction rollback leaves no executor role');
  const dir=new URL('../../supabase/migrations/',import.meta.url);for(const f of (await readdir(dir)).filter(f=>/deletion_job_queue|deletion_app_purge|deletion_completion|deletion_free_billing|deletion_admission|deletion_executor_role/.test(f)).sort())await db.exec(await readFile(new URL(f,dir),'utf8'));
  for(const owner of [A,B]){await q('INSERT INTO auth.users(id,email_confirmed_at) VALUES($1,now())',[owner]);await q('INSERT INTO public.fk_accounts(id) VALUES($1)',[owner]);await q('INSERT INTO public.fk_subscriptions(account_id) VALUES($1)',[owner]);await q("INSERT INTO public.fk_customers(account_id,name) VALUES($1,'fixture')",[owner]);}
  await q('INSERT INTO auth.sessions(id,user_id) VALUES($1,$2)',[S,A]);

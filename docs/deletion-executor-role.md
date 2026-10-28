@@ -1,6 +1,6 @@
 # Restricted deletion database role — 27 October 2026
 
-Candidate migration ONLY. Live read-only inspection found auth.users and auth.sessions both have RLS enabled and are owned by supabase_auth_admin. No live grant, policy, role, password or user-data change was made. The candidate installs SELECT policies on those managed tables, which requires their owner or another provider-supported privileged path. Test execution as a local database owner does NOT establish hosted installation permission. Do not bypass this by granting the executor BYPASSRLS, using the postgres password, or applying only half the migration. Hosted owner-policy installation/support must be resolved before deployment.
+Candidate migration ONLY. The ownership-only blocker reported on 27 October was incorrect: Supabase's supautils can authorize policy DDL without table ownership. Read-only inspection on 28 October confirmed the live supautils.policy_grants entry for postgres includes both auth.users and auth.sessions. These tables remain owned by supabase_auth_admin with RLS enabled. No production role, policy, grant, password or user-data change has been made. Actual installation and acceptance testing are still pending.
 
 followkit_deletion_executor is NOLOGIN, NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOREPLICATION and NOBYPASSRLS. No membership is granted to anon/authenticated/authenticator, and no login or credentials are created. It reads only required Auth identity/session columns through role-specific SELECT policies, with no Auth INSERT/UPDATE/DELETE. Auth passwords, tokens, metadata and email are not granted.
 
@@ -10,16 +10,22 @@ The unapplied admission migration removes FOR SHARE on managed sessions because 
 
 Verification: the composed PostgreSQL WASM test now enables RLS on simulated Auth tables, adds a private email column, and runs all service database queries under this restricted role. Four groups pass: denial of Auth writes/private-email reads/retained-authority deletion/plan-billing edits/unready purge; archive outage; provider outage; full retry completion preserving the other account. Role attributes and absence of authenticated membership are checked. Provider simulation uses the fixture owner connection only, separate from the restricted service connection. Existing GitHub CI executes this suite on both matrix jobs; native server concurrency still uses its disposable administrator harness and is not claimed as restricted-role coverage.
 
-This role is not yet provisioned, and the Worker/database transport is not yet wired. A future server login must receive only this capability set after hosted policy permission is resolved. Keep public deletion flags off. Native hosted-owner compatibility, managed Auth policy review, secret provisioning and isolated live acceptance tests remain required.
+This role is not yet provisioned, and the Worker/database transport is not yet wired. A future server login must receive only this capability set after installation and acceptance checks. Keep public deletion flags off. Native hosted-owner compatibility, managed Auth policy review, secret provisioning and isolated live acceptance tests remain required.
 
 References reviewed: https://supabase.com/docs/guides/database/postgres/roles and https://supabase.com/docs/guides/database/postgres/row-level-security .
 
-## Hosted installation finding
+## Hosted policy authority correction — 28 October 2026
 
-Read-only catalog inspection on 27 October 2026 confirms the connected current/session role is postgres, rolsuper=false, rolbypassrls=true, and pg_has_role(postgres,supabase_auth_admin,MEMBER)=false. Both required Auth tables remain owned by supabase_auth_admin with RLS enabled. BYPASSRLS is not ownership authority to install a policy. The candidate now fails before role creation unless both tables exist and the installer is superuser or has effective owner privileges. Passing that check is only a prerequisite, not provider approval or a guarantee of installation.
+The previous conclusion based only on PostgreSQL ownership was incomplete. Supabase's documented supautils.policy_grants setting allows specified roles to CREATE/ALTER/DROP policies on named tables without owning those tables. The live setting explicitly lists auth.users and auth.sessions for postgres. The installer also has SELECT on both tables and CREATE on followkit_private. These are read-only observations, not proof that every grant in the complete candidate has been successfully installed.
 
-The current policy-based candidate cannot be installed through the available project connection. This is an implementation/deployment blocker, not a user login issue. Do not ask the operator for a more powerful password, change managed ownership, or turn RLS off. Keep deletion disabled. Resolve a provider-supported installation path, or redesign the Auth inspection boundary and review its privileges before wiring runtime credentials.
+The migration no longer rejects a legitimate installer solely because it is neither a superuser nor an Auth-owner member. Native GRANT and CREATE POLICY checks remain authoritative inside the single BEGIN/COMMIT transaction. Any failure requires rollback of the entire transaction; operators must not run fragments or continue an aborted transaction. No supautils settings, managed ownership, RLS bypass attributes or runtime privileges have been broadened.
 
-Provider inquiry to review (not sent): On project kfnputowvfxozdiuhpzo, can a NOLOGIN/NOBYPASSRLS application role receive column-limited SELECT access to auth.users(id,email_confirmed_at,is_anonymous) and auth.sessions(id,user_id,not_after) through provider-supported role-specific policies, without changing managed ownership? If not, what supported server interface can verify session presence/absence and user absence for a deletion workflow? No password, access token, or user records are needed for this inquiry.
+The WASM fixture has no supautils. It checks that an unauthorized installer fails and rollback leaves no executor role; the existing full workflow still runs under the restricted role after fixture-owner installation. This does not simulate the hosted extension or prove hosted deployment. The prior custom ownership exception test was removed because that exception incorrectly blocked the supported platform path.
 
-Reference: https://supabase.com/docs/guides/platform/permissions confirms managed Auth ownership must remain supabase_auth_admin. No inquiry was sent and no production migration was applied.
+Next: review/apply the complete candidate migration chain using the existing installer authority, verify column grants and role-specific policies, then wire a separately provisioned restricted runtime connection. Do not expose the database administrator credential to the Worker. Public deletion remains disabled until live synthetic-account acceptance and operational configuration are complete.
+
+References:
+- https://github.com/supabase/supautils#manage-policies
+- https://supabase.com/docs/guides/platform/permissions
+
+The previously drafted provider inquiry was not sent; the read-only setting inspection resolves the specific ownership-only question without requiring that inquiry.

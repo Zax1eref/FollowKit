@@ -1,17 +1,10 @@
--- CANDIDATE ONLY: auth SELECT policies require managed-table-owner authority.
+-- CANDIDATE ONLY: requires actual policy/grant authority (including supautils).
 -- Do not apply partially. No login/password/membership is provisioned here.
 BEGIN;
--- Fail before provisioning anything when managed Auth policy ownership is absent.
-DO $preflight$
-BEGIN
- IF (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-     WHERE n.nspname='auth' AND c.relname IN ('users','sessions')
-       AND ((SELECT rolsuper FROM pg_roles WHERE rolname=current_user)
-            OR pg_has_role(current_user,c.relowner,'USAGE'))) <> 2 THEN
-  RAISE EXCEPTION 'deletion_executor_auth_policy_owner_required'
-   USING ERRCODE='42501', HINT='Do not change Auth ownership or bypass RLS. Resolve provider-supported policy installation before deploying this candidate.';
- END IF;
-END $preflight$;
+-- Supabase can authorize policy DDL through supautils.policy_grants without
+-- table ownership. Do not reject that supported path with an ownership-only
+-- preflight. Actual GRANT/CREATE POLICY statements enforce permissions; this
+-- transaction rolls back all role/grant/policy changes if any statement fails.
 CREATE ROLE followkit_deletion_executor NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 GRANT USAGE ON SCHEMA public,followkit_private,auth TO followkit_deletion_executor;
 GRANT SELECT(id,email_confirmed_at,is_anonymous) ON auth.users TO followkit_deletion_executor;
