@@ -29,3 +29,23 @@ References:
 - https://supabase.com/docs/guides/platform/permissions
 
 The previously drafted provider inquiry was not sent; the read-only setting inspection resolves the specific ownership-only question without requiring that inquiry.
+
+## Live installation checkpoint — 28 October 2026
+
+The following infrastructure migrations are now installed, with hosted versions (source timestamps differ):
+
+| Source migration | Hosted version |
+| --- | --- |
+| 20261027044228_deletion_job_queue | 20261028153856 |
+| 20261027044623_deletion_app_purge | 20261028154022 |
+| 20261027050006_deletion_completion | 20261028154032 |
+| 20261027051042_deletion_free_billing | 20261028154048 |
+| 20261027094406_deletion_admission | 20261028154055 |
+
+The executor-role migration was NOT executed: automatic approval review rejected the broad production privilege grant pending explicit user authorization. This is distinct from the superseded Auth ownership issue. Do not retry or bypass that rejection without resolving authorization. The concrete pending action is creation of the NOLOGIN/NOBYPASSRLS role and its column-limited Auth reads, private job updates, account-state updates and gated application DELETE permissions exactly as defined in 20261027100318_deletion_executor_role.sql. No password or login is created, no application rows are deleted by this migration, and it does not enable the public deletion route.
+
+Post-install verification: deletion_jobs has zero rows and RLS enabled; anon and authenticated have no SELECT/INSERT/UPDATE/DELETE privileges; all six deletion workflow functions are SECURITY INVOKER and cannot be executed by either client role. followkit_deletion_executor does not exist. No deletion job was admitted or run. The runtime is still unwired and deletion remains disabled.
+
+Security advisors after installation show one expected new informational RLS-without-policy finding for the private deletion_jobs table. The ten existing authenticated SECURITY DEFINER RPC warnings and disabled leaked-password protection warning remain unchanged; this checkpoint does not claim a clean overall security audit. References: https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy and https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection .
+
+Corrected migration/tests CI passed: https://github.com/Zax1eref/FollowKit/actions/runs/40718063320 .
