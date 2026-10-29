@@ -1,6 +1,6 @@
 # Dedicated deletion database connection — 29 October 2026
 
-Prepared code only; no runtime login, password, Worker deployment or live transport test has been performed. Existing deletion capability role is installed. Public deletion remains disabled.
+Runtime identity and executor capability are now installed. No password has been set by this workflow, and no Worker deployment or live transport test has been performed. Public deletion remains disabled.
 
 `src/server/deletion-database.mjs` accepts an injected node-postgres Client and a server secret connection URL. Each call opens a fresh TLS-verified connection, validates current_user/session_user are followkit_deletion_runtime with inherited executor capability and no superuser/bypass/create-role/create-db/replication flags, runs one parameterized statement and closes. Direct project host or Supabase shared session pool on port 5432 only; transaction pool 6543, admin usernames, URL query options and unrelated hosts are rejected. Optional CA must be the trusted certificate obtained from the project dashboard. Never disable certificate validation.
 
@@ -10,7 +10,7 @@ Connection timeout is 2 seconds, query timeout 2.5 seconds, server statement tim
 
 ## Remaining operator setup
 
-1. Provision the separate `followkit_deletion_runtime` login through a secure local administrator session. It needs NO SUPERUSER/BYPASSRLS/CREATEROLE/CREATEDB/REPLICATION, only inherited followkit_deletion_executor membership, and no unrelated grants. Do not add membership to anon/authenticated/authenticator. Do not paste passwords into ChatGPT or commit them. This document does not provision that login or supply credentials.
+1. The separate `followkit_deletion_runtime` login is now installed; do not recreate it. It needs NO SUPERUSER/BYPASSRLS/CREATEROLE/CREATEDB/REPLICATION, only inherited followkit_deletion_executor membership, and no unrelated grants. Do not add membership to anon/authenticated/authenticator. Do not paste passwords into ChatGPT or commit them. This document does not provision that login or supply credentials.
 2. Use a dedicated randomly generated password stored in the operator's password manager. Build the URL using the exact Supabase dashboard Direct or Session pooler host, database postgres, port 5432, and the dedicated login (pooler username includes `.kfnputowvfxozdiuhpzo`). Percent-encode the password in the URL. Do not use the postgres connection URL.
 3. After the login has been verified, run from the repository on the operator's machine:
 
@@ -39,11 +39,11 @@ Validation completed: npm test 181/181; Wrangler 4.152.0 deploy --dry-run built 
 
 ## Runtime identity and operator probe — 29 October 2026
 
-Prepared migration: `20261029131306_deletion_runtime_identity.sql`. **Not installed:** normal automatic approval review rejected creation of a permanent production LOGIN role with deletion capabilities until the user explicitly authorizes that scope. No workaround or retry was performed. Existing executor role is unchanged. The proposed login has PASSWORD NULL (no password-based connection possible yet), connection limit 4, no administrative/bypass attributes, and only executor membership with INHERIT TRUE, SET FALSE, ADMIN FALSE. Role defaults set statement timeout 2s, lock timeout 1s and idle-in-transaction timeout 2s.
+Prepared migration: `20261029131306_deletion_runtime_identity.sql`. **Installed after explicit user approval:** automatic approval initially rejected the LOGIN-role grant; the user then answered yes to the concrete scope. The same migration succeeded through normal approval as hosted version `20261029131659`. No workaround was used. Existing executor role is unchanged. The proposed login has PASSWORD NULL (no password-based connection possible yet), connection limit 4, no administrative/bypass attributes, and only executor membership with INHERIT TRUE, SET FALSE, ADMIN FALSE. Role defaults set statement timeout 2s, lock timeout 1s and idle-in-transaction timeout 2s.
 
 The composed PostgreSQL fixture now runs its service queries as the runtime identity inheriting the executor role, rather than directly as the executor. Membership flags and the entire archive-failure/provider-failure/retry/completion sequence pass. This is simulated PostgreSQL coverage, not hosted password authentication.
 
-After that migration is authorized and installed, set a unique password privately in an existing trusted administrator `psql` session using:
+The migration is installed. Set a unique password privately in an existing trusted administrator `psql` session using:
 
 ```text
 \password followkit_deletion_runtime
@@ -66,3 +66,12 @@ Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8792/probe' -Headers @{'X-
 Success must be `passed:true`, `scope:deletion_database_read_only`, `productionDeletionWritten:false`. Stop the local server with Ctrl+C afterward. Only share that result, not the connection URL or password. A failure is not permission to enable production deletion or relax TLS.
 
 The caller accepts only loopback POST /probe with the fixed header and no Origin/query string; it accepts no SQL, user ID or token. It calls only the fixed private verify() method and strips unexpected provider output. Two additional tests cover request rejection before RPC and sanitized success/failure responses. No remote probe or real deletion was run.
+
+
+## Hosted verification after approval
+
+Catalog checks confirm LOGIN/INHERIT true; SUPERUSER/CREATEDB/CREATEROLE/REPLICATION/BYPASSRLS false; connection limit 4 and all three timeout settings match the migration. The only parent membership is followkit_deletion_executor with INHERIT true, SET false and ADMIN false. No anon/authenticated/authenticator membership exists. Required Auth ID SELECT is granted; email SELECT, Auth UPDATE/DELETE and tombstone DELETE are denied. The job queue remains empty.
+
+The migration explicitly created PASSWORD NULL and this workflow has not set a password. No password verifier was retrieved, no credentials were generated or sent, and password authentication has not been tested. The next operator action is the private psql password prompt above, followed by Cloudflare secret installation and the local probe. Do not share secrets in chat.
+
+Security advisor categories/counts are unchanged (2 informational RLS-without-policy findings, 10 existing signed-in SECURITY DEFINER RPC warnings, 1 disabled leaked-password-protection warning). Remediation references: https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy ; https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable ; https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection . These findings are not a claim that all security checks are clear.
