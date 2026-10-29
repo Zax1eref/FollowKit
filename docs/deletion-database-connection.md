@@ -22,7 +22,7 @@ npx --yes wrangler@4.152.0 secret put DELETION_DATABASE_URL --config wrangler.de
 
 The secret command prompts privately; paste the dedicated connection URL there, never in this chat. If a project CA is required, install it as DELETION_DATABASE_CA using the provider certificate; do not relax TLS. Deploying before secrets leaves verify() returning passed:false.
 
-A private service-binding caller for the probe and live acceptance are still required; this document does not claim a remote probe passed. The production deletion Worker composition, Auth-admin secret, billing-mode confirmation, rate-limit binding and public feature enablement are also pending. Keep the main Worker configuration unchanged.
+The private service-binding caller is now prepared; live acceptance is still required; this document does not claim a remote probe passed. The production deletion Worker composition, Auth-admin secret, billing-mode confirmation, rate-limit binding and public feature enablement are also pending. Keep the main Worker configuration unchanged.
 
 ## Validation
 
@@ -35,3 +35,34 @@ References reviewed:
 - https://supabase.com/docs/guides/database/connecting-to-postgres
 
 Validation completed: npm test 181/181; Wrangler 4.152.0 deploy --dry-run built a 201.39 KiB module (41.90 KiB gzip); Miniflare loaded that exact bundle and confirmed GET/POST/DELETE return 404 while missing-secret private RPC returns a sanitized passed:false result without network access. Reproduce the bundle test with `node tools/worker/deletion-database-probe-test.mjs <dry-run-output>/database-probe.js`. No Cloudflare upload or live database connection was performed.
+
+
+## Runtime identity and operator probe — 29 October 2026
+
+Prepared migration: `20261029131306_deletion_runtime_identity.sql`. **Not installed:** normal automatic approval review rejected creation of a permanent production LOGIN role with deletion capabilities until the user explicitly authorizes that scope. No workaround or retry was performed. Existing executor role is unchanged. The proposed login has PASSWORD NULL (no password-based connection possible yet), connection limit 4, no administrative/bypass attributes, and only executor membership with INHERIT TRUE, SET FALSE, ADMIN FALSE. Role defaults set statement timeout 2s, lock timeout 1s and idle-in-transaction timeout 2s.
+
+The composed PostgreSQL fixture now runs its service queries as the runtime identity inheriting the executor role, rather than directly as the executor. Membership flags and the entire archive-failure/provider-failure/retry/completion sequence pass. This is simulated PostgreSQL coverage, not hosted password authentication.
+
+After that migration is authorized and installed, set a unique password privately in an existing trusted administrator `psql` session using:
+
+```text
+\password followkit_deletion_runtime
+```
+
+psql prompts twice without echoing the password. Connect to the project's verified TLS endpoint; do not put the administrator password in a shell command, repository or chat. This step requires a local psql installation and trusted project certificate configuration where applicable. Store the new runtime password in your password manager. The database password is separate from an app user password or Supabase API key.
+
+Follow the deployment and secret steps above, then use the local-only caller (do not deploy this caller):
+
+```powershell
+npx --yes wrangler@4.152.0 dev --config wrangler.database-probe-caller.jsonc
+```
+
+In a second PowerShell window:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8792/probe' -Headers @{'X-FollowKit-Probe'='1'} | ConvertTo-Json
+```
+
+Success must be `passed:true`, `scope:deletion_database_read_only`, `productionDeletionWritten:false`. Stop the local server with Ctrl+C afterward. Only share that result, not the connection URL or password. A failure is not permission to enable production deletion or relax TLS.
+
+The caller accepts only loopback POST /probe with the fixed header and no Origin/query string; it accepts no SQL, user ID or token. It calls only the fixed private verify() method and strips unexpected provider output. Two additional tests cover request rejection before RPC and sanitized success/failure responses. No remote probe or real deletion was run.

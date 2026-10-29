@@ -9,7 +9,7 @@ try{
  await db.exec('ROLLBACK; RESET ROLE');
  assert.equal((await q("SELECT 1 FROM pg_roles WHERE rolname='followkit_deletion_executor'")).rows.length,0);
  console.log('PASS unauthorized installer fails and transaction rollback leaves no executor role');
- const dir=new URL('../../supabase/migrations/',import.meta.url);for(const f of (await readdir(dir)).filter(f=>/deletion_job_queue|deletion_app_purge|deletion_completion|deletion_free_billing|deletion_admission|deletion_executor_role/.test(f)).sort())await db.exec(await readFile(new URL(f,dir),'utf8'));
+ const dir=new URL('../../supabase/migrations/',import.meta.url);for(const f of (await readdir(dir)).filter(f=>/deletion_job_queue|deletion_app_purge|deletion_completion|deletion_free_billing|deletion_admission|deletion_executor_role|deletion_runtime_identity/.test(f)).sort())await db.exec(await readFile(new URL(f,dir),'utf8'));
  for(const owner of [A,B]){await q('INSERT INTO auth.users(id,email_confirmed_at) VALUES($1,now())',[owner]);await q('INSERT INTO public.fk_accounts(id) VALUES($1)',[owner]);await q('INSERT INTO public.fk_subscriptions(account_id) VALUES($1)',[owner]);await q("INSERT INTO public.fk_customers(account_id,name) VALUES($1,'fixture')",[owner]);}
  await q('INSERT INTO auth.sessions(id,user_id) VALUES($1,$2)',[S,A]);
  const user={id:A,email_confirmed_at:'2026-10-27',is_anonymous:false};let archiveFails=true,providerFails=true,logoutCalls=0;const archived=new Set();
@@ -22,8 +22,10 @@ try{
  const attrs=(await q("SELECT rolcanlogin,rolsuper,rolbypassrls,rolcreaterole FROM pg_roles WHERE rolname='followkit_deletion_executor'")).rows[0];
  assert.deepEqual(attrs,{rolcanlogin:false,rolsuper:false,rolbypassrls:false,rolcreaterole:false});
  assert.equal((await q("SELECT pg_has_role('authenticated','followkit_deletion_executor','MEMBER') m")).rows[0].m,false);
- const executor={query:async(sql,args)=>{await db.exec('SET ROLE followkit_deletion_executor');try{return await q(sql,args)}finally{await db.exec('RESET ROLE')}}};
- await db.exec('SET ROLE followkit_deletion_executor');
+ const membership=(await q("SELECT m.admin_option,m.inherit_option,m.set_option FROM pg_auth_members m JOIN pg_roles r ON r.oid=m.roleid JOIN pg_roles u ON u.oid=m.member WHERE r.rolname='followkit_deletion_executor' AND u.rolname='followkit_deletion_runtime'")).rows[0];
+ assert.deepEqual(membership,{admin_option:false,inherit_option:true,set_option:false});
+ const executor={query:async(sql,args)=>{await db.exec('SET ROLE followkit_deletion_runtime');try{return await q(sql,args)}finally{await db.exec('RESET ROLE')}}};
+ await db.exec('SET ROLE followkit_deletion_runtime');
  for(const sql of ['DELETE FROM auth.users','DELETE FROM auth.sessions','SELECT email FROM auth.users','DELETE FROM followkit_private.account_tombstones','DELETE FROM followkit_private.deletion_jobs','SELECT * FROM followkit_private.payment_events',"UPDATE public.fk_accounts SET plan='paid'","UPDATE public.fk_subscriptions SET status='active'"]){await assert.rejects(()=>q(sql),e=>e.code==='42501');}
  assert.equal((await q('DELETE FROM public.fk_customers RETURNING account_id')).rows.length,0);
  await db.exec('RESET ROLE');
